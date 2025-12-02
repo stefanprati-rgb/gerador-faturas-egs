@@ -1,5 +1,5 @@
 import router from './router.js';
-import { renderHome } from './modules/home/index.js';
+
 import { renderGerador, initGerador } from './modules/gerador/index.js';
 import { renderProcessador, initProcessador } from './modules/processador/index.js';
 import { renderCorretor, initCorretor } from './modules/corretor/index.js';
@@ -49,7 +49,12 @@ class App {
      */
     registerRoutes() {
         // Rota inicial
-        router.register('/', () => renderHome());
+        // Rota inicial - Redireciona para o Processador
+        router.register('/', async () => {
+            router.navigate('/processador');
+            // Opcional: renderizar o processador diretamente se a navegação não disparar renderização imediata
+            // mas o router.navigate deve lidar com isso via hashchange
+        });
 
         // Gerador de Faturas
         router.register('/gerador', async () => {
