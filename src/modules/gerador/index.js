@@ -324,6 +324,9 @@ async function handleGeneratePDF(instalacao) {
   }
 
   try {
+    console.log('Objeto pdfGenerator:', pdfGenerator);
+    console.log('Tipo de generatePDF:', typeof pdfGenerator?.generatePDF);
+
     const { blob, filename } = await pdfGenerator.generatePDF(client, mesReferenciaEl.value);
 
     // Download
