@@ -130,4 +130,4 @@ class PDFGenerator {
     }
 }
 
-export default new PDFGenerator();
+export const pdfGenerator = new PDFGenerator();

@@ -3,7 +3,7 @@
  */
 
 import excelProcessor from '../../core/excelProcessor.js';
-import pdfGenerator from '../../core/pdfGenerator.js';
+import { pdfGenerator } from '../../core/pdfGenerator.js';
 import { validateFile, validateMonth, validateDate } from '../../core/validators.js';
 import { normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';

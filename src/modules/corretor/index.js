@@ -2,7 +2,7 @@
  * Módulo Corretor de Faturas
  */
 
-import pdfGenerator from '../../core/pdfGenerator.js';
+import { pdfGenerator } from '../../core/pdfGenerator.js';
 import { formatCurrency, formatNumber } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
 
