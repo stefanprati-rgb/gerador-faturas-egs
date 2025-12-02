@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatizador de Planilhas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+          --brand: #00ED64;
+          --ink: #0B1220;
+          --bg: #F7F8FA;
+          --card: #FFFFFF;
+          --line: #E7EBF0;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg); 
+            color: var(--ink);
+            line-height: 1.6;
+        }
+        main > .card { margin-bottom: 28px; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 1px 2px rgba(16,24,40,.04);
+            padding: 24px;
+        }
+        .card h2 { margin-bottom: 14px; }
+        .grid.gap-y-4 { row-gap: 16px; }
+        .btn-primary {
+            background: var(--brand) !important;
+            color: #052b18 !important;
+            border-radius: 12px;
+        }
+        .loader {
+            border: 4px solid #e0e0e0;
+            border-top: 4px solid var(--brand);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #drop-zone.drop-active {
+          border-color: var(--brand);
+          background: #f0fff6;
+        }
+        .validation-error { color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; }
+        .toast {
+            position: fixed; bottom: -100px; left: 50%;
+            transform: translateX(-50%); padding: 1rem 1.5rem;
+            background-color: var(--ink); color: var(--brand);
+            border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+            transition: bottom 0.5s ease-in-out; z-index: 100;
+        }
+        .toast.show { bottom: 20px; }
+        .stepper {
+          display:flex; gap:16px; justify-content:center; align-items:center;
+          padding: 8px 0; margin-bottom: 24px;
+        }
+        .step { display:flex; align-items:center; gap:8px; color:#6B7280; font-weight:600; }
+        .step .dot {
+          width:28px; height:28px; border-radius:50%; display:grid; place-items:center;
+          border:2px solid #D1D5DB; background:#fff; font-size:13px;
+        }
+        .step.active { color: var(--ink); }
+        .step.active .dot { border-color: var(--brand); background: #E9FFF4; }
+        .text-gray-600 { color: #4B5563 !important; }
+        .file-chip{
+            display:inline-flex; gap:8px; align-items:center;
+            padding:6px 12px; border:1px solid var(--line); border-radius:9999px;
+            font-size: 0.875rem;
+        }
+        .file-chip button {
+            background: none; border: none; font-weight: 600; color: #ef4444; cursor: pointer;
+        }
+        .progress-line{height:4px;background:#e5f9ef;border-radius:99px;overflow:hidden; margin: 1rem 0;}
+        .progress-line>span{display:block;height:100%;width:0;background:var(--brand);transition:width .4s}
+    </style>
+</head>
+<body class="p-4 lg:p-8">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-white/90 flex flex-col items-center justify-center z-50">
+        <div class="loader"></div>
+        <p id="loading-status" class="mt-4 text-gray-700 font-semibold">Carregando ambiente...</p>
+    </div>
+
+    <div class="w-full max-w-3xl mx-auto pb-24">
+        <header class="text-center mb-6">
+            <img src="https://hube.energy/wp-content/uploads/2024/10/Logo-1.svg" alt="HUBE Energy Logo" class="mx-auto mb-4 h-16 w-auto">
+            <h1 class="text-4xl font-bold">Automatizador de Planilhas</h1>
+            <p class="text-gray-600 mt-2">Siga os passos para gerar seu relatório final.</p>
+        </header>
+        
+        <nav class="stepper">
+          <div id="step-1" class="step active"><span class="dot">1</span>Arquivo</div>
+          <div id="step-2" class="step"><span class="dot">2</span>Dados</div>
+          <div id="step-3" class="step"><span class="dot">3</span>Processar</div>
+        </nav>
+
+        <main>
+            <div id="section-1-arquivo" class="card">
+                <h2 class="text-xl font-semibold">1. Carregar Arquivo de Origem</h2>
+                <input id="file-upload" type="file" class="hidden" accept=".xlsm,.xlsx,.xls,.csv">
+                <div id="drop-zone" class="mt-4 rounded-lg border-2 border-dashed border-gray-300 bg-white p-6 text-center text-gray-600 cursor-pointer">
+                  <div class="flex flex-col items-center space-y-2">
+                    <i class="fas fa-cloud-arrow-up text-3xl text-gray-400"></i>
+                    <p class="font-semibold">Arraste e solte ou clique aqui</p>
+                    <p class="text-xs text-gray-500">ou <kbd>Ctrl/⌘ + V</kbd> para colar dados</p>
+                  </div>
+                </div>
+                <p id="file-hint" class="mt-2 text-xs text-gray-500">Aceita .xlsm, .xlsx, .xls e .csv. Macros não são executadas.</p>
+                <div id="file-selected" class="mt-3 hidden"></div>
+                <div id="file-error" class="validation-error hidden"></div>
+            </div>
+
+            <div id="section-2-dados" class="card">
+                 <h2 class="text-xl font-semibold">2. Informar Dados</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mt-4">
+                    <div>
+                        <label for="mes-referencia" class="block text-sm font-semibold mb-1">Mês de Referência</label>
+                        <input type="month" id="mes-referencia" class="w-full rounded-lg border border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand)] p-2.5">
+                        <div id="mes-error" class="validation-error hidden">Obrigatório.</div>
+                    </div>
+                    <div>
+                        <label for="vencimento" class="block text-sm font-semibold mb-1">Vencimento</label>
+                        <input type="date" id="vencimento" class="w-full rounded-lg border border-[var(--line)] focus:border-[var(--brand)] focus:ring-[var(--brand)] p-2.5">
+                         <div id="vencimento-error" class="validation-error hidden">Obrigatório.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="section-3-resultado" class="card">
+                <h2 class="text-xl font-semibold">3. Resultado do Processamento</h2>
+                <div id="res-empty" class="text-center text-gray-600 py-8">
+                  <i class="fas fa-file-circle-question text-3xl mb-2 text-gray-300"></i>
+                  <p class="font-semibold">Pronto para começar</p>
+                  <p class="text-sm">Envie um arquivo e preencha as datas.</p>
+                </div>
+                <div id="mini-progress" class="progress-line hidden"><span></span></div>
+                <div id="res-log" class="hidden p-4 bg-gray-50 rounded-lg text-sm font-mono whitespace-pre-wrap h-64 overflow-y-auto"></div>
+                <div id="res-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm"></div>
+                <div id="download-area" class="mt-4 text-center hidden">
+                     <a id="download-link" class="btn btn-primary text-base px-6 py-3">
+                        <i class="fas fa-download mr-2"></i> Baixar Novamente
+                    </a>
+                 </div>
+            </div>
+        </main>
+    </div>
+    
+    <footer class="fixed bottom-0 left-0 right-0 border-t border-[var(--line)] bg-white/90 backdrop-blur-md z-10">
+        <div class="mx-auto max-w-3xl px-4 py-3 flex items-center justify-between">
+            <p class="text-sm text-gray-600 hidden md:block"><i class="fas fa-lock mr-1"></i>Processamento 100% no seu navegador.</p>
+            <button id="process-btn" class="btn btn-primary px-8 py-3 text-lg" disabled>
+              <i class="fas fa-cogs mr-2"></i> Processar Planilha
+            </button>
+        </div>
+    </footer>
+    
+    <div id="toast" class="toast"></div>
+
+<script type="text/python">
+import pandas as pd
+import io
+import re
+import unicodedata
+from datetime import datetime
+
+def _norm(s):
+    s = str(s or "")
+    s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", s).strip().upper()
+
+def pick_col(df, *alternativas):
+    cols_norm = {_norm(c): c for c in df.columns}
+    for alt in alternativas:
+        key = _norm(alt)
+        if key in cols_norm: return cols_norm[key]
+    for k, original in cols_norm.items():
+        if any(_norm(a) in k for a in alternativas): return original
+    raise KeyError(f"Nenhuma das colunas alternativas foi encontrada: {alternativas}")
+
+def to_num(x):
+    if pd.isna(x): return 0.0
+    if isinstance(x, (int, float)): return float(x)
+    s = str(x).replace("\u00a0", " ").strip()
+    s = re.sub(r"[Rr]\$|\%", "", s).replace(" ", "")
+    s = s.replace("—", "0").replace("-", "-")
+    if s in {"", "--", "---"}: return 0.0
+    neg = False
+    if s.startswith("(") and s.endswith(")"):
+        neg = True
+        s = s[1:-1]
+    s = s.replace("+", "")
+    if s.count(",") == 1 and s.count(".") >= 1: s = s.replace(".", "").replace(",", ".")
+    elif s.count(",") == 1 and s.count(".") == 0: s = s.replace(",", ".")
+    try: v = float(s)
+    except Exception: v = 0.0
+    return -v if neg else v
+
+def col_to_numeric(df, col_name_options):
+    try:
+        col_name = pick_col(df, *col_name_options)
+        return df[col_name].map(to_num).fillna(0.0)
+    except KeyError:
+        return pd.Series([0.0]*len(df), index=df.index)
+
+def _best_engine_for_excel():
+    try:
+        import openpyxl; return "openpyxl"
+    except Exception:
+        return None
+
+def _find_header_row(df_like, alvo_tokens=("REF",)):
+    for i, row in df_like.iterrows():
+        joined = " | ".join(str(v) for v in row.values)
+        norm = _norm(joined)
+        if all(tok in norm for tok in alvo_tokens): return i
+    return -1
+
+def processar_planilha_py(file_content, mes_referencia_str, vencimento_str):
+    log = []
+    try:
+        excel_file_buffer = io.BytesIO(file_content)
+        engine = _best_engine_for_excel()
+        try:
+            xls = pd.ExcelFile(excel_file_buffer, engine=engine)
+        except Exception:
+            excel_file_buffer.seek(0)
+            xls = pd.ExcelFile(excel_file_buffer, engine=None)
+            log.append("Fallback: Usando engine auto.")
+        
+        abas = [str(s).strip() for s in xls.sheet_names]
+        candidatos_aba = ["Detalhe Por UC", "Detalhe por UC", "Detalhe", "Relatório", "Sheet1"]
+        NOME_DA_ABA = next((a for a in candidatos_aba if a in abas), abas[0] if abas else None)
+        if not NOME_DA_ABA:
+            log.append("ERRO: Nenhuma aba encontrada no arquivo."); return None, "\n".join(log)
+        log.append(f"Aba selecionada: '{NOME_DA_ABA}'.")
+        excel_file_buffer.seek(0)
+        df_temp = pd.read_excel(excel_file_buffer, sheet_name=NOME_DA_ABA, header=None, nrows=200, engine=engine)
+        header_row = _find_header_row(df_temp, ("REF",))
+        if header_row == -1: header_row = _find_header_row(df_temp, ("REFERENCIA","REFERÊNCIA","REF."))
+        if header_row == -1: header_row = _find_header_row(df_temp, ("01",))
+        if header_row == -1:
+            log.append("ERRO: Cabeçalho com referência não encontrado."); return None, "\n".join(log)
+        log.append(f"Cabeçalho encontrado na linha {header_row+1}.")
+        excel_file_buffer.seek(0)
+        df_origem = pd.read_excel(excel_file_buffer, sheet_name=NOME_DA_ABA, header=header_row, engine=engine)
+        df_origem.columns = [str(c).strip() for c in df_origem.columns]
+        log.append(f"Linhas no bruto: {len(df_origem)}")
+        col_ref = pick_col(df_origem, "REF (sempre dia 01 de cada mês)", "REF", "REFERENCIA")
+        df_origem[col_ref] = pd.to_datetime(df_origem[col_ref], errors="coerce")
+        mes_referencia_dt = pd.to_datetime(mes_referencia_str)
+        df = df_origem[df_origem[col_ref].dt.to_period('M') == mes_referencia_dt.to_period('M')].copy()
+        if df.empty:
+            meses_disp = sorted(df_origem[col_ref].dropna().dt.strftime('%Y-%m').unique())
+            log.append(f"AVISO: Nenhum dado para '{mes_referencia_dt.strftime('%Y-%m')}'. Meses disponíveis: {meses_disp}"); return None, "\n".join(log)
+        log.append(f"Linhas no mês: {len(df)}")
+        col_valor_emissao_opts = ('Valor enviado para emissão', 'Valor enviado p/ emissão', 'Valor Enviado para Emissao')
+        col_valor = pick_col(df, *col_valor_emissao_opts)
+        df[col_valor] = col_to_numeric(df, col_valor_emissao_opts)
+        antes = len(df)
+        df = df[df[col_valor] >= 5].copy()
+        log.append(f"Filtro valor >= 5: {antes} -> {len(df)}")
+        if df.empty:
+            log.append("AVISO: Nenhuma linha restou após o filtro de valor."); return None, "\n".join(log)
+        colunas_finais = ['instalacao','distribuidora','mesReferencia','valorTotal','vencimento','creditoAcumulado','creditoConsumidoQuantidade','creditoConsumidoTarifa','creditoConsumidoValor','energiaConsumidaQuantidade','energiaConsumidaTarifa','energiaConsumidaValor','tarifaCobradaGera','outrosCustosFatura','ajusteRetroativo','descontoExtra','economiaAcumulada','economiaReais','valorCobradoDistribuidora','custoTotalComGd','custoTotalSemGd','motivo','observacao','tipoCalculo']
+        dfp = pd.DataFrame(index=df.index)
+        dfp['instalacao'] = df[pick_col(df, 'Instalação','Nº Instalação','Instalacao')]
+        dfp['distribuidora'] = 'energisa_ms'
+        dfp['mesReferencia'] = mes_referencia_dt.strftime('%Y-%m')
+        dfp['valorTotal'] = df[col_valor].fillna(0)
+        dfp['vencimento'] = pd.to_datetime(vencimento_str).strftime('%d/%m/%Y')
+        dfp['creditoAcumulado'] = col_to_numeric(df, ('CREDITO ACUMULADO_FP','CRÉDITO ACUMULADO_FP')) + col_to_numeric(df, ('CREDITO ACUMULADO_P','CRÉDITO ACUMULADO_P'))
+        dfp['creditoConsumidoQuantidade'] = col_to_numeric(df, ('CRÉD. CONSUMIDO_FP','CRED. CONSUMIDO_FP'))
+        dfp['creditoConsumidoTarifa'] = col_to_numeric(df, ('TARIFA_Comp_FP','TARIFA COMP FP'))
+        dfp['creditoConsumidoValor'] = (dfp['creditoConsumidoQuantidade'] * dfp['creditoConsumidoTarifa']).round(2)
+        dfp['energiaConsumidaQuantidade'] = col_to_numeric(df, ('CONSUMO_FP',))
+        dfp['energiaConsumidaTarifa'] = col_to_numeric(df, ('TARIFA FP','Tarifa FP'))
+        dfp['energiaConsumidaValor'] = (dfp['energiaConsumidaQuantidade'] * dfp['energiaConsumidaTarifa']).round(2)
+        dfp['tarifaCobradaGera'] = col_to_numeric(df, ('Tarifa Média Projeto','Tarifa Media Projeto'))
+        dfp['outrosCustosFatura'] = col_to_numeric(df, ('OUTROS','Outros'))
+        dfp['ajusteRetroativo'] = 0.0
+        dfp['descontoExtra'] = 0.0
+        dfp['economiaAcumulada'] = col_to_numeric(df, ('Ganho Total (R$) Padrão','Ganho Total (R$) Padrao'))
+        custo_s_gd = col_to_numeric(df, ('CUSTO_S_GD',))
+        fatura_c_gd = col_to_numeric(df, ('FATURA C/GD COM RESTITUIÇÃO','FATURA C/GD COM RESTITUICAO'))
+        valor_enviado= dfp['valorTotal']
+        dfp['economiaReais'] = (custo_s_gd - (fatura_c_gd + valor_enviado)).round(2)
+        dfp['valorCobradoDistribuidora'] = fatura_c_gd.round(2)
+        dfp['custoTotalComGd'] = (fatura_c_gd + valor_enviado).round(2)
+        dfp['custoTotalSemGd'] = custo_s_gd.round(2)
+        dfp['motivo'] = ""
+        dfp['observacao'] = ""
+        dfp['tipoCalculo'] = ""
+        dfp = dfp.reindex(columns=colunas_finais)
+        log.append("Transformação concluída.")
+        output_buffer = io.BytesIO()
+        try: dfp.to_excel(output_buffer, index=False)
+        except Exception:
+            output_buffer = io.BytesIO()
+            dfp.to_csv(output_buffer, index=False, encoding='utf-8-sig')
+            output_buffer.seek(0)
+            log.append("AVISO: Gerado CSV como fallback.")
+            return output_buffer.getvalue(), "\n".join(log)
+        output_buffer.seek(0)
+        log.append(f"Linhas exportadas: {len(dfp)}. Sucesso!")
+        return output_buffer.getvalue(), "\n".join(log)
+    except KeyError as e:
+        log.append(f"\nERRO DE MAPEAMENTO: {e}")
+        return None, "\n".join(log)
+    except Exception as e:
+        log.append(f"\nERRO INESPERADO: {type(e).__name__} - {e}")
+        return None, "\n".join(log)
+</script>
+
+    <script>
+        // DOM Elements
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingStatus = document.getElementById('loading-status');
+        const fileUpload = document.getElementById('file-upload');
+        const dropZone = document.getElementById('drop-zone');
+        const fileSelectedEl = document.getElementById('file-selected');
+        const mesReferenciaEl = document.getElementById('mes-referencia');
+        const vencimentoEl = document.getElementById('vencimento');
+        const processBtn = document.getElementById('process-btn');
+        const toast = document.getElementById('toast');
+        const resEmpty = document.getElementById('res-empty');
+        const resProgress = document.getElementById('mini-progress');
+        const resLog = document.getElementById('res-log');
+        const resError = document.getElementById('res-error');
+        const downloadArea = document.getElementById('download-area');
+        const downloadLink = document.getElementById('download-link');
+        const stepper = {
+            1: document.getElementById('step-1'),
+            2: document.getElementById('step-2'),
+            3: document.getElementById('step-3'),
+        };
+        const fileErrorEl = document.getElementById('file-error');
+
+        // State
+        let pyodide;
+        let lastUrl = null;
+        let pythonLoaded = false;
+        let selectedFile = null;
+        
+        async function initPyodide() {
+            try {
+                pyodide = await loadPyodide();
+                loadingStatus.textContent = 'Carregando pacotes...';
+                await pyodide.loadPackage(['pandas', 'micropip']);
+                loadingStatus.textContent = 'Instalando dependências...';
+                try {
+                    await pyodide.pyimport('micropip').install('openpyxl');
+                } catch (e) { console.warn('Falha ao instalar openpyxl.', e); }
+                
+                const pythonCode = document.querySelector('script[type="text/python"]').textContent;
+                pyodide.runPython(pythonCode);
+                pythonLoaded = true;
+            } catch (e) {
+                 loadingStatus.textContent = 'Falha ao carregar o ambiente. Verifique a conexão.';
+                 console.error("Erro ao inicializar Pyodide:", e);
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+        
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        function updateStepper(activeStep) {
+            Object.values(stepper).forEach(s => s.classList.remove('active'));
+            if(stepper[activeStep]) stepper[activeStep].classList.add('active');
+        }
+        
+        function updateStepperByState(){
+            if (!selectedFile) return updateStepper(1);
+            if (!mesReferenciaEl.value || !vencimentoEl.value) return updateStepper(2);
+            return updateStepper(3);
+        }
+
+        function validateForm() {
+            let isValid = true;
+            const fields = [
+                { el: mesReferenciaEl, errEl: document.getElementById('mes-error'), valid: !!mesReferenciaEl.value },
+                { el: vencimentoEl, errEl: document.getElementById('vencimento-error'), valid: !!vencimentoEl.value },
+                { el: fileUpload, errEl: fileErrorEl, valid: !!selectedFile },
+            ];
+            
+            fields.forEach(({ el, errEl, valid }) => {
+                errEl.classList.toggle('hidden', valid);
+                if (el.type !== 'file') el.classList.toggle('border-red-500', !valid);
+                if (!valid) isValid = false;
+            });
+            
+            processBtn.disabled = !isValid;
+            processBtn.classList.toggle('btn-disabled', !isValid);
+            updateStepperByState();
+        }
+
+        function isAcceptableFile(file) {
+          const ACCEPT_EXT = ['.xlsm','.xlsx','.xls','.csv'];
+          return file && ACCEPT_EXT.some(ext => file.name?.toLowerCase().endsWith(ext));
+        }
+
+        function resetFileSelection() {
+            fileUpload.value = '';
+            selectedFile = null;
+            fileSelectedEl.classList.add('hidden');
+            fileErrorEl.classList.add('hidden');
+            fileErrorEl.textContent = '';
+            validateForm();
+        }
+        
+        function setSelectedFile(file, sourceLabel='') {
+          selectedFile = file;
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          fileUpload.files = dt.files;
+          
+          fileSelectedEl.classList.remove('hidden');
+          const sizeMB = (file.size/1024/1024).toFixed(2);
+          fileSelectedEl.innerHTML = `<span class="file-chip">
+            <i class="far fa-file-excel text-green-600"></i>
+            <span>${file.name} &middot; ${sizeMB} MB</span>
+            <button type="button" title="Remover arquivo" onclick="resetFileSelection()"><i class="fas fa-times"></i></button>
+          </span>`;
+          validateForm();
+        }
+        
+        function setMiniProgress(p){ 
+            resProgress.classList.remove('hidden');
+            resProgress.firstElementChild.style.width = p + '%'; 
+        }
+
+        // --- Event Listeners ---
+        fileUpload.addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            if(file) setSelectedFile(file, 'Arquivo selecionado');
+        });
+
+        [mesReferenciaEl, vencimentoEl].forEach(el => {
+            el.addEventListener('input', ()=> {
+                document.getElementById(el.id + '-error').classList.add('hidden');
+                el.classList.remove('border-red-500');
+            });
+            el.addEventListener('change', validateForm);
+        });
+
+        dropZone.addEventListener('click', () => fileUpload.click());
+        ['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('drop-active'); }));
+        ['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('drop-active'); }));
+        dropZone.addEventListener('drop', e => {
+          const file = e.dataTransfer?.files?.[0];
+          fileErrorEl.classList.add('hidden');
+          if (isAcceptableFile(file)) setSelectedFile(file, 'Arquivo solto');
+          else {
+            fileErrorEl.textContent = 'Tipo de arquivo não suportado (.xlsm, .xlsx, .xls, .csv).';
+            fileErrorEl.classList.remove('hidden');
+          }
+        });
+        
+        window.addEventListener('paste', async (e) => {
+          const items = e.clipboardData?.items || [];
+          for (const it of items) {
+            if (it.kind === 'file' && isAcceptableFile(it.getAsFile())) {
+              setSelectedFile(it.getAsFile(), 'Arquivo colado'); return;
+            }
+          }
+          const text = e.clipboardData?.getData('text/plain') || '';
+          if (/\t|\n/.test(text)) {
+            const csv = text.split(/\r?\n/).map(l => l.split('\t').map(v => `"${(v??"").replace(/"/g,'""')}"`).join(',')).join('\n');
+            const file = new File([csv], `COLADO_${Date.now()}.csv`, { type: 'text/csv' });
+            setSelectedFile(file, 'Tabela colada');
+          }
+        });
+
+        processBtn.addEventListener('click', async () => {
+            if (!pythonLoaded) {
+                resError.textContent = 'Ambiente ainda iniciando. Aguarde alguns segundos e tente novamente.';
+                resError.classList.remove('hidden');
+                resEmpty.classList.add('hidden');
+                return;
+            }
+            if (processBtn.disabled) return;
+            
+            [resEmpty, resLog, resError, downloadArea].forEach(el => el.classList.add('hidden'));
+            processBtn.classList.add('btn-disabled');
+            processBtn.disabled = true;
+
+            try {
+                processBtn.innerHTML = '<div class="loader mr-2"></div> Processando...';
+                setMiniProgress(0);
+                
+                setMiniProgress(33);
+                const fileBuffer = await selectedFile.arrayBuffer();
+                
+                setMiniProgress(66);
+                pyodide.globals.set('file_content_js', pyodide.toPy(new Uint8Array(fileBuffer)));
+                const mesReferencia = mesReferenciaEl.value;
+                localStorage.setItem('lastRefMonth', mesReferencia);
+                pyodide.globals.set('mes_referencia_js', mesReferencia + '-01');
+                pyodide.globals.set('vencimento_js', vencimentoEl.value);
+                
+                const results = await pyodide.runPythonAsync(`processar_planilha_py(file_content_js, mes_referencia_js, vencimento_js)`);
+                const [fileBytesOut, logMessages] = results.toJs();
+                
+                setMiniProgress(100);
+                resLog.textContent = logMessages;
+                resLog.classList.remove('hidden');
+                
+                if (fileBytesOut) {
+                    if (lastUrl) URL.revokeObjectURL(lastUrl); 
+                    const isCsv = (logMessages || "").includes("Gerado CSV");
+                    const blob = new Blob([fileBytesOut], { type: isCsv ? 'text/csv;charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    lastUrl = URL.createObjectURL(blob);
+                    downloadLink.href = lastUrl;
+                    const ym = (mesReferencia || '').replace('-', '');
+                    const originalFileName = selectedFile.name.replace(/\.(xlsm|xlsx|csv|xls)$/i, '');
+                    downloadLink.download = `PROCESSADO_${ym}_${originalFileName}.${isCsv ? 'csv' : 'xlsx'}`;
+                    
+                    downloadArea.classList.remove('hidden');
+                    downloadLink.click();
+                    showToast('Arquivo gerado e baixado! ✅');
+                    resetFileSelection();
+                } else {
+                    throw new Error("O processamento não gerou um arquivo. Verifique o log.");
+                }
+            } catch (error) {
+                resProgress.classList.add('hidden');
+                resError.textContent = `Erro crítico: ${error.message}. Verifique o log para mais detalhes.`;
+                resError.classList.remove('hidden');
+                resLog.classList.remove('hidden');
+            } finally {
+                 processBtn.disabled = false;
+                 processBtn.classList.remove('btn-disabled');
+                 processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i> Processar Planilha';
+            }
+        });
+        
+        window.addEventListener('beforeunload', () => { if (lastUrl) URL.revokeObjectURL(lastUrl); });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const lastMonth = localStorage.getItem('lastRefMonth');
+            if(lastMonth) mesReferenciaEl.value = lastMonth;
+            validateForm();
+            initPyodide();
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos customizados */
+@layer components {
+  .nav-link {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors;
+    @apply hover:bg-primary/10 hover:text-primary;
+  }
+  
+  .nav-link.active {
+    @apply bg-primary text-white;
+  }
+  
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition-all;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-white hover:bg-primary-dark;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+  }
+  
+  .card {
+    @apply bg-card border border-border rounded-2xl shadow-sm p-6;
+  }
+  
+  .input {
+    @apply w-full rounded-lg border border-border px-4 py-2.5;
+    @apply focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none;
+  }
+  
+  .loader {
+    @apply border-4 border-gray-200 border-t-primary rounded-full w-6 h-6 animate-spin;
+  }
+}
+
+/* Animações customizadas */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Drag and drop zone */
+.drop-zone {
+  @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer;
+  @apply transition-colors hover:border-primary hover:bg-primary/5;
+}
+
+.drop-zone.drop-active {
+  @apply border-primary bg-primary/10;
+}
