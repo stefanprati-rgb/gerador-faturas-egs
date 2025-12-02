@@ -46,8 +46,8 @@ class ExcelProcessor {
             if (statusCallback) statusCallback('Carregando script de processamento...');
 
             // Carregar script Python
-            const response = await fetch('/src/python/processor.py');
-            const pythonCode = await response.text();
+            // Usando importação raw do Vite para evitar problemas de fetch/caminho
+            const pythonCode = (await import('../python/processor.py?raw')).default;
             this.pyodide.runPython(pythonCode);
 
             this.isLoaded = true;
