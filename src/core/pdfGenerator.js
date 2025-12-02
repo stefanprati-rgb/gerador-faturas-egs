@@ -15,7 +15,51 @@ class PDFGenerator {
      * @param {object} client - Dados do cliente
      * @param {string} mesReferencia - Mês no formato YYYY-MM
      * @returns {Promise<{blob: Blob, filename: string}>}
+     */
+    async generatePDF(client, mesReferencia) {
+        const element = document.getElementById('pdf-page');
+        if (!element) {
+            throw new Error('Template PDF não encontrado no DOM');
+        }
 
+        // Preencher template
+        await this.fillTemplate(client, mesReferencia);
+
+        // Gerar nome do arquivo
+        const nomeClean = sanitizeFilename(client.nome.split(' ')[0]);
+        const filename = `Fatura_${client.instalacao}_${nomeClean}.pdf`;
+
+        // Configurações do html2pdf
+        const opt = {
+            margin: 0,
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Gerar PDF
+        return new Promise((resolve, reject) => {
+            setTimeout(async () => {
+                try {
+                    const worker = html2pdf().from(element).set(opt);
+                    const pdf = await worker.toPdf().get('pdf');
+
+                    // Remove páginas extras se houver
+                    if (pdf.getNumberOfPages() > 1) {
+                        for (let i = pdf.getNumberOfPages(); i > 1; i--) {
+                            pdf.deletePage(i);
+                        }
+                    }
+
+                    const blob = pdf.output('blob');
+                    resolve({ blob, filename });
+                } catch (error) {
+                    reject(error);
+                }
+            }, 100);
+        });
+    }
     /**
      * Preenche o template HTML com dados do cliente
      * @param {object} client - Dados do cliente
