@@ -1,14 +1,15 @@
 /**
- * Módulo Processador de Planilhas
+ * Módulo Processador de Planilhas - Refatorado com StateManager
  */
 
 import excelProcessor from '../../core/excelProcessor.js';
-import { validateFile, validateMonth, validateDate } from '../../core/validators.js';
+import stateManager from '../../core/StateManager.js';
+import fileStatus from '../../components/FileStatus.js';
+import { validateFile } from '../../core/validators.js';
 import { formatCurrency } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
 
-let processedData = [];
-let selectedFile = null;
+let isPyodideReady = false;
 
 /**
  * Renderiza a interface do processador
@@ -16,20 +17,26 @@ let selectedFile = null;
 export async function renderProcessador() {
   return `
     <div class="main-grid">
+      <!-- File Status Global -->
+      <div id="processador-file-status" class="col-span-full hidden"></div>
+
+      <!-- Left Panel: Controles -->
       <div class="left-panel">
-        <div>
-          <h2 class="text-xl font-semibold mb-4">1. Carregar Planilha</h2>
-          <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
+        
+        <!-- Upload Card -->
+        <div class="panel-card" id="upload-card-processador">
+          <h2 class="section-title">1. Fonte de Dados</h2>
           <div id="drop-zone-processador" class="drop-zone">
             <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-            <p class="font-semibold">Arraste e solte ou clique</p>
-            <p class="text-sm text-text-muted mt-1">Formatos: .xlsx, .xlsm, .xls</p>
+            <p class="font-semibold">Carregar Planilha</p>
+            <p class="text-sm text-text-muted mt-1">.xlsx, .xlsm, .xls</p>
           </div>
-          <p id="file-selected-processador" class="mt-3 text-sm font-semibold text-success hidden"></p>
+          <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
         </div>
 
-        <div>
-          <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
+        <!-- Parâmetros -->
+        <div class="panel-card">
+          <h2 class="section-title">2. Parâmetros</h2>
           <div class="space-y-4">
             <div>
               <label for="mes-referencia-processador" class="block text-sm font-medium mb-1">Mês de Referência</label>
@@ -42,66 +49,78 @@ export async function renderProcessador() {
           </div>
         </div>
 
-        <button id="process-btn-processador" class="w-full btn btn-primary text-lg py-3" disabled>
-          <i class="fas fa-cogs mr-2"></i>Processar Planilha
+        <!-- Botão Processar -->
+        <button id="process-btn-processador" class="w-full btn btn-primary text-lg py-3 shadow-lg hover:shadow-xl transition-all" disabled>
+          <i class="fas fa-cogs mr-2"></i>Processar Dados
         </button>
       </div>
 
-      <div class="right-panel" id="result-container-processador">
-        <h2 class="text-xl font-semibold mb-4">3. Resultados</h2>
-        
-        <div id="empty-state-processador" class="text-center text-gray-500 py-20">
-          <i class="fas fa-table text-6xl mb-4 text-gray-300"></i>
-          <p class="font-semibold text-lg">Aguardando processamento</p>
-          <p class="text-sm mt-2">Os resultados aparecerão aqui após o processamento</p>
-        </div>
+      <!-- Right Panel: Resultados -->
+      <div class="right-panel">
+        <div class="panel-card min-h-[500px] flex flex-col">
+          <h2 class="section-title mb-4">3. Resultados</h2>
+          
+          <!-- Empty State -->
+          <div id="empty-state-processador" class="text-center text-gray-500 py-20 flex-grow flex flex-col items-center justify-center">
+            <div class="bg-gray-50 p-6 rounded-full mb-4">
+              <i class="fas fa-table text-4xl text-gray-300"></i>
+            </div>
+            <p class="font-medium">Aguardando processamento</p>
+            <p class="text-sm mt-1 max-w-xs">Carregue a planilha e clique em processar para visualizar os dados.</p>
+          </div>
 
-        <div id="stats-container-processador" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div class="card bg-primary/5 border-primary/20 text-center">
-            <div id="stat-total" class="text-3xl font-bold text-primary mb-1">0</div>
-            <div class="text-sm text-text-muted">Total de Clientes</div>
+          <!-- Stats Cards -->
+          <div id="stats-container-processador" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-center">
+              <div id="stat-total" class="text-2xl font-bold text-primary mb-1">0</div>
+              <div class="text-xs text-text-muted font-medium uppercase">Clientes</div>
+            </div>
+            <div class="p-3 bg-green-50 border border-green-100 rounded-lg text-center">
+              <div id="stat-economia" class="text-xl font-bold text-success mb-1">R$ 0</div>
+              <div class="text-xs text-text-muted font-medium uppercase">Economia</div>
+            </div>
+            <div class="p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-center">
+              <div id="stat-co2" class="text-xl font-bold text-warning mb-1">0</div>
+              <div class="text-xs text-text-muted font-medium uppercase">kg CO₂</div>
+            </div>
+            <div class="p-3 bg-gray-50 border border-gray-100 rounded-lg text-center">
+              <div id="stat-arvores" class="text-xl font-bold text-secondary mb-1">0</div>
+              <div class="text-xs text-text-muted font-medium uppercase">Árvores</div>
+            </div>
           </div>
-          <div class="card bg-success/5 border-success/20 text-center">
-            <div id="stat-economia" class="text-2xl font-bold text-success mb-1">R$ 0,00</div>
-            <div class="text-sm text-text-muted">Economia Total</div>
-          </div>
-          <div class="card bg-warning/5 border-warning/20 text-center">
-            <div id="stat-co2" class="text-2xl font-bold text-warning mb-1">0 kg</div>
-            <div class="text-sm text-text-muted">CO₂ Evitado</div>
-          </div>
-          <div class="card bg-secondary/5 border-secondary/20 text-center">
-            <div id="stat-arvores" class="text-2xl font-bold text-secondary mb-1">0</div>
-            <div class="text-sm text-text-muted">Árvores</div>
-          </div>
-        </div>
 
-        <div id="table-container-processador" class="hidden overflow-x-auto">
-          <p class="text-sm text-gray-500 mb-2 italic">* Mostrando apenas os primeiros 20 registros para visualização rápida.</p>
-          <table class="w-full border-collapse">
-            <thead>
-              <tr class="bg-gray-100 border-b-2 border-gray-300">
-                <th class="text-left p-3 font-semibold">Cliente</th>
-                <th class="text-left p-3 font-semibold">Instalação</th>
-                <th class="text-right p-3 font-semibold">Economia Mês</th>
-                <th class="text-right p-3 font-semibold">Economia Total</th>
-                <th class="text-right p-3 font-semibold">Total a Pagar</th>
-              </tr>
-            </thead>
-            <tbody id="table-body-processador">
-            </tbody>
-          </table>
-        </div>
+          <!-- Table -->
+          <div id="table-container-processador" class="hidden overflow-hidden rounded-lg border border-gray-100 mb-6">
+            <div class="overflow-x-auto max-h-[400px]">
+              <table class="w-full text-sm text-left">
+                <thead class="bg-gray-50 text-gray-600 font-medium sticky top-0">
+                  <tr>
+                    <th class="p-3">Cliente</th>
+                    <th class="p-3">Instalação</th>
+                    <th class="p-3 text-right">Economia</th>
+                    <th class="p-3 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody id="table-body-processador" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+            <div class="p-2 bg-gray-50 text-xs text-center text-gray-500 border-t border-gray-100">
+              * Exibindo primeiros 20 registros
+            </div>
+          </div>
 
-        <div id="actions-container-processador" class="hidden mt-6 flex gap-3 flex-wrap">
-          <button id="send-to-corretor-btn" class="btn btn-primary flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
-            <i class="fas fa-edit mr-2"></i>Corrigir/Editar Faturas
-          </button>
-          <button id="export-json-btn" class="btn btn-secondary flex-1">
-            <i class="fas fa-file-code mr-2"></i>Exportar JSON
-          </button>
-          <button id="export-csv-btn" class="btn btn-secondary flex-1">
-            <i class="fas fa-file-csv mr-2"></i>Exportar CSV
-          </button>
+          <!-- Actions -->
+          <div id="actions-container-processador" class="hidden mt-auto pt-6 border-t border-gray-100 flex gap-3 flex-wrap">
+            <button id="send-to-corretor-btn" class="btn btn-primary flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+              <i class="fas fa-edit mr-2"></i>Corrigir Faturas
+            </button>
+            <button id="export-json-btn" class="btn btn-secondary flex-1">
+              <i class="fas fa-file-code mr-2"></i>JSON
+            </button>
+            <button id="export-csv-btn" class="btn btn-secondary flex-1">
+              <i class="fas fa-file-csv mr-2"></i>CSV
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -112,87 +131,108 @@ export async function renderProcessador() {
  * Inicializa eventos do módulo processador
  */
 export function initProcessador() {
+  // Inicializa componente de status global
+  new fileStatus.constructor('processador-file-status');
+
   const fileUpload = document.getElementById('file-upload-processador');
   const dropZone = document.getElementById('drop-zone-processador');
-  const mesReferenciaEl = document.getElementById('mes-referencia-processador');
-  const dataVencimentoEl = document.getElementById('data-vencimento-processador');
   const processBtn = document.getElementById('process-btn-processador');
   const exportJsonBtn = document.getElementById('export-json-btn');
   const exportCsvBtn = document.getElementById('export-csv-btn');
   const sendToCorretorBtn = document.getElementById('send-to-corretor-btn');
 
-  if (!fileUpload || !dropZone) return;
+  // Sincronizar com Estado Global
+  stateManager.subscribe((state) => {
+    updateUI(state);
+  });
 
-  // Upload de arquivo
-  dropZone.addEventListener('click', () => fileUpload.click());
-  fileUpload.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+  // Inicializa UI com estado atual
+  updateUI(stateManager.getState());
 
-  // Drag and drop
+  // Upload Logic
+  const handleUpload = (file) => {
+    const valid = validateFile(file);
+    if (!valid.valid) {
+      notification.error(valid.error);
+      return;
+    }
+
+    if (stateManager.hasFile()) {
+      fileStatus.constructor.requestFileChange(() => {
+        stateManager.setFile(file);
+      });
+    } else {
+      stateManager.setFile(file);
+    }
+  };
+
+  // Event Listeners - Upload
+  dropZone?.addEventListener('click', () => fileUpload.click());
+  fileUpload?.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleUpload(e.target.files[0]);
+  });
+
+  // Drag and Drop
   ['dragenter', 'dragover'].forEach(evName => {
-    dropZone.addEventListener(evName, (e) => {
+    dropZone?.addEventListener(evName, (e) => {
       e.preventDefault();
       dropZone.classList.add('drop-active');
     });
   });
 
   ['dragleave', 'drop'].forEach(evName => {
-    dropZone.addEventListener(evName, (e) => {
+    dropZone?.addEventListener(evName, (e) => {
       e.preventDefault();
       dropZone.classList.remove('drop-active');
     });
   });
 
-  dropZone.addEventListener('drop', (e) => handleFileSelect(e.dataTransfer.files[0]));
+  dropZone?.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
+  });
 
-  // Validação de formulário
-  [mesReferenciaEl, dataVencimentoEl].forEach(el => {
-    if (el) el.addEventListener('change', validateForm);
+  // Parâmetros - Atualiza estado global ao mudar
+  const mesReferenciaEl = document.getElementById('mes-referencia-processador');
+  const dataVencimentoEl = document.getElementById('data-vencimento-processador');
+
+  mesReferenciaEl?.addEventListener('change', (e) => {
+    stateManager.setParams({ mesReferencia: e.target.value });
+  });
+
+  dataVencimentoEl?.addEventListener('change', (e) => {
+    stateManager.setParams({ dataVencimento: e.target.value });
   });
 
   // Processar
-  if (processBtn) {
-    processBtn.addEventListener('click', handleProcess);
-  }
+  processBtn?.addEventListener('click', handleProcess);
 
   // Exportar
-  if (exportJsonBtn) {
-    exportJsonBtn.addEventListener('click', () => exportData('json'));
-  }
-  if (exportCsvBtn) {
-    exportCsvBtn.addEventListener('click', () => exportData('csv'));
-  }
+  exportJsonBtn?.addEventListener('click', () => exportData('json'));
+  exportCsvBtn?.addEventListener('click', () => exportData('csv'));
 
   // Enviar para Corretor
-  if (sendToCorretorBtn) {
-    sendToCorretorBtn.addEventListener('click', sendToCorretor);
-  }
+  sendToCorretorBtn?.addEventListener('click', () => {
+    window.location.hash = '/corretor';
+    notification.success('Navegando para o Corretor...');
+  });
 
   // Inicializar Pyodide
   initPyodideForProcessador();
 }
 
-let isPyodideReady = false;
-
 /**
- * Inicializa Pyodide para o processador
+ * Inicializa Pyodide
  */
 async function initPyodideForProcessador() {
   try {
-    const loadingStatus = document.getElementById('loading-status');
-    // Só atualiza status se realmente estiver carregando
-    if (!excelProcessor.isLoaded && loadingStatus) {
-      loadingStatus.textContent = 'Carregando motor de processamento...';
-    }
-
     await excelProcessor.init((status) => {
-      if (loadingStatus) loadingStatus.textContent = status;
+      console.log('Pyodide:', status);
     });
 
     isPyodideReady = true;
-    validateForm();
+    updateUI(stateManager.getState()); // Revalidar UI
 
     // Notificação removida para evitar spam ao trocar de abas
-    // notification.info('Sistema de processamento pronto!');
   } catch (error) {
     console.error('Erro ao inicializar Pyodide:', error);
     notification.error('Falha ao carregar motor de processamento.');
@@ -200,112 +240,98 @@ async function initPyodideForProcessador() {
 }
 
 /**
- * Envia dados para o módulo Corretor
+ * Atualiza UI baseado no estado global
  */
-function sendToCorretor() {
-  if (processedData.length === 0) {
-    notification.warning('Nenhum dado para enviar');
-    return;
-  }
-
-  try {
-    // Salvar no localStorage para persistência entre abas
-    localStorage.setItem('egs_data_to_correct', JSON.stringify(processedData));
-
-    // Disparar evento customizado para notificar outros módulos
-    window.dispatchEvent(new CustomEvent('egs:dataReady', { detail: processedData }));
-
-    // Tentar mudar para a aba Corretor
-    // A navegação deve ser tratada pelo Router, aqui simulamos o clique
-    window.location.hash = '/corretor';
-    notification.success('Dados enviados para o Corretor!');
-
-  } catch (error) {
-    console.error('Erro ao enviar para corretor:', error);
-    notification.error('Erro ao transferir dados. Tente exportar JSON.');
-  }
-}
-
-/**
- * Manipula seleção de arquivo
- */
-function handleFileSelect(file) {
-  const validation = validateFile(file);
-
-  if (!validation.valid) {
-    notification.error(validation.error);
-    return;
-  }
-
-  selectedFile = file;
-  const fileSelectedEl = document.getElementById('file-selected-processador');
-  if (fileSelectedEl) {
-    fileSelectedEl.classList.remove('hidden');
-    fileSelectedEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-  }
-
-  validateForm();
-}
-
-/**
- * Valida formulário
- */
-function validateForm() {
-  const mesReferenciaEl = document.getElementById('mes-referencia-processador');
-  const dataVencimentoEl = document.getElementById('data-vencimento-processador');
+function updateUI(state) {
+  const uploadCard = document.getElementById('upload-card-processador');
+  const fileStatusEl = document.getElementById('processador-file-status');
+  const mesRef = document.getElementById('mes-referencia-processador');
+  const dataVenc = document.getElementById('data-vencimento-processador');
   const processBtn = document.getElementById('process-btn-processador');
 
-  if (!processBtn) return;
+  // Sincroniza Inputs com estado
+  if (mesRef && state.params.mesReferencia) {
+    mesRef.value = state.params.mesReferencia;
+  }
+  if (dataVenc && state.params.dataVencimento) {
+    dataVenc.value = state.params.dataVencimento;
+  }
 
-  const isReady = selectedFile &&
-    mesReferenciaEl?.value &&
-    dataVencimentoEl?.value &&
-    isPyodideReady;
+  // Gerencia Visibilidade do Upload
+  if (state.file) {
+    uploadCard?.classList.add('hidden');
+    fileStatusEl?.classList.remove('hidden');
+  } else {
+    uploadCard?.classList.remove('hidden');
+    fileStatusEl?.classList.add('hidden');
+  }
 
-  processBtn.disabled = !isReady;
-  processBtn.classList.toggle('opacity-50', !isReady);
+  // Habilita/Desabilita Botão Processar
+  const isReady = state.file && state.params.mesReferencia && state.params.dataVencimento && isPyodideReady;
+
+  if (processBtn) {
+    processBtn.disabled = !isReady;
+
+    if (!isPyodideReady && state.file) {
+      processBtn.innerHTML = '<div class="loader !w-4 !h-4 !border-2"></div> Carregando sistema...';
+    } else if (state.processedData.length > 0) {
+      processBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Reprocessar Dados';
+    } else {
+      processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Processar Dados';
+    }
+  }
+
+  // Mostrar/Ocultar Resultados
+  const hasData = state.processedData.length > 0;
+  document.getElementById('empty-state-processador')?.classList.toggle('hidden', hasData);
+  document.getElementById('stats-container-processador')?.classList.toggle('hidden', !hasData);
+  document.getElementById('table-container-processador')?.classList.toggle('hidden', !hasData);
+  document.getElementById('actions-container-processador')?.classList.toggle('hidden', !hasData);
+
+  if (hasData) {
+    renderResults(state.processedData);
+  }
 }
 
 /**
  * Processa planilha
  */
 async function handleProcess() {
-  const mesReferenciaEl = document.getElementById('mes-referencia-processador');
-  const dataVencimentoEl = document.getElementById('data-vencimento-processador');
+  const state = stateManager.getState();
   const processBtn = document.getElementById('process-btn-processador');
 
-  if (!selectedFile || !mesReferenciaEl || !dataVencimentoEl) return;
+  if (!state.file || !state.params.mesReferencia || !state.params.dataVencimento) {
+    notification.error('Preencha todos os campos');
+    return;
+  }
 
   try {
     // Desabilitar botão
-    processBtn.disabled = true;
-    processBtn.innerHTML = '<div class="loader"></div> Processando...';
+    if (processBtn) {
+      processBtn.disabled = true;
+      processBtn.innerHTML = '<div class="loader"></div> Processando...';
+    }
 
-    // Processar
-    processedData = await excelProcessor.processFile(
-      selectedFile,
-      mesReferenciaEl.value,
-      dataVencimentoEl.value
+    // Processar arquivo
+    const data = await excelProcessor.processFile(
+      state.file,
+      state.params.mesReferencia,
+      state.params.dataVencimento
     );
 
-    // Renderizar resultados
-    renderResults(processedData);
+    // Salvar no estado global
+    stateManager.setProcessedData(data);
 
-    // Mostrar containers
-    document.getElementById('empty-state-processador')?.classList.add('hidden');
-    document.getElementById('stats-container-processador')?.classList.remove('hidden');
-    document.getElementById('table-container-processador')?.classList.remove('hidden');
-    document.getElementById('actions-container-processador')?.classList.remove('hidden');
-
-    notification.success(`${processedData.length} registros processados com sucesso!`);
+    notification.success(`${data.length} registros processados com sucesso!`);
 
   } catch (error) {
     notification.error(error.message || 'Erro ao processar arquivo');
     console.error(error);
   } finally {
-    processBtn.disabled = false;
-    processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Processar Planilha';
-    validateForm();
+    if (processBtn) {
+      processBtn.disabled = false;
+    }
+    updateUI(stateManager.getState());
   }
 }
 
@@ -321,26 +347,25 @@ function renderResults(data) {
 
   document.getElementById('stat-total').textContent = totalClientes;
   document.getElementById('stat-economia').textContent = formatCurrency(economiaTotal);
-  document.getElementById('stat-co2').textContent = `${co2Total.toFixed(2)} kg`;
+  document.getElementById('stat-co2').textContent = co2Total.toFixed(2);
   document.getElementById('stat-arvores').textContent = arvoresTotal.toFixed(0);
 
-  // Tabela - LIMITADA A 20 ITENS
+  // Tabela - Primeiros 20 registros
   const tbody = document.getElementById('table-body-processador');
   if (!tbody) return;
 
   tbody.innerHTML = '';
 
-  const sampleData = data.slice(0, 20); // MOSTRAR APENAS OS PRIMEIROS 20
+  const sampleData = data.slice(0, 20);
 
   sampleData.forEach((client, index) => {
     const tr = document.createElement('tr');
-    tr.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+    tr.className = 'hover:bg-gray-50 transition-colors';
     tr.innerHTML = `
-      <td class="p-3">${client.nome}</td>
-      <td class="p-3">${client.instalacao}</td>
-      <td class="p-3 text-right font-semibold text-success">${formatCurrency(client.economiaMes)}</td>
-      <td class="p-3 text-right font-semibold">${formatCurrency(client.economiaTotal)}</td>
-      <td class="p-3 text-right font-semibold text-primary">${formatCurrency(client.totalPagar)}</td>
+      <td class="p-3 font-medium text-gray-800">${client.nome}</td>
+      <td class="p-3 text-gray-600">${client.instalacao}</td>
+      <td class="p-3 text-right text-success font-semibold">${formatCurrency(client.economiaMes)}</td>
+      <td class="p-3 text-right text-primary font-bold">${formatCurrency(client.totalPagar)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -350,21 +375,22 @@ function renderResults(data) {
  * Exporta dados
  */
 function exportData(format) {
-  if (processedData.length === 0) {
+  const state = stateManager.getState();
+
+  if (!state.processedData || state.processedData.length === 0) {
     notification.warning('Nenhum dado para exportar');
     return;
   }
 
-  const mesReferenciaEl = document.getElementById('mes-referencia-processador');
-  const mesRef = mesReferenciaEl?.value || 'dados';
+  const mesRef = state.params.mesReferencia || 'dados';
 
   if (format === 'json') {
-    const jsonStr = JSON.stringify(processedData, null, 2);
+    const jsonStr = JSON.stringify(state.processedData, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     downloadBlob(blob, `processamento_${mesRef}.json`);
     notification.success('JSON exportado com sucesso!');
   } else if (format === 'csv') {
-    const csv = convertToCSV(processedData);
+    const csv = convertToCSV(state.processedData);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     downloadBlob(blob, `processamento_${mesRef}.csv`);
     notification.success('CSV exportado com sucesso!');
