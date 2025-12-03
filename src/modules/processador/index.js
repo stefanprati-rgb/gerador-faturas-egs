@@ -17,11 +17,6 @@ let selectedFile = null;
 export async function renderProcessador() {
   return `
     <div class="max-w-6xl mx-auto">
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-2">Processador de Planilhas</h1>
-        <p class="text-text-muted">Processe e valide dados de planilhas Excel</p>
-      </div>
-
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Coluna Esquerda: Controles -->
         <div class="lg:col-span-1 space-y-4">
