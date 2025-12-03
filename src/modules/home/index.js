@@ -1,214 +1,99 @@
-// src/modules/processador/index.js
-import excelProcessor from '../../core/excelProcessor.js';
-import stateManager from '../../core/StateManager.js'; // Importar StateManager
-import { FileStatus } from '../../components/FileStatus.js'; // Importar UI de Status
-import { validateFile } from '../../core/validators.js';
-import { formatCurrency } from '../../core/formatters.js';
-import notification from '../../components/Notification.js';
+/**
+ * Página Inicial (Dashboard Executivo)
+ */
 
-// Não precisamos mais de variáveis globais locais como processedData ou selectedFile
-// Usaremos stateManager.getState()
-
-export async function renderProcessador() {
-  // Adicionamos uma div id="global-file-status" no topo
+export function renderHome() {
   return `
-    <div class="main-grid">
-      <div id="global-file-status" class="hidden col-span-full mb-4"></div>
-
-      <div class="left-panel">
-        <div id="upload-card-processador">
-          <h2 class="text-xl font-semibold mb-4">1. Carregar Planilha</h2>
-          <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
-          <div id="drop-zone-processador" class="drop-zone">
-            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-            <p class="font-semibold">Arraste e solte ou clique</p>
-            <p class="text-sm text-text-muted mt-1">Formatos: .xlsx, .xlsm, .xls</p>
-          </div>
+    <div class="max-w-5xl mx-auto p-6 animate-slide-up">
+      <div class="text-center mb-16 pt-8">
+        <div class="inline-flex items-center justify-center p-3 bg-blue-50 rounded-2xl mb-6 shadow-sm">
+           <svg class="h-10 w-auto text-primary" viewBox="0 0 200 50" fill="currentColor">
+              <text x="5" y="35" font-family="-apple-system, sans-serif" font-size="30" font-weight="700">EGS</text>
+              <text x="70" y="35" font-family="-apple-system, sans-serif" font-size="30" font-weight="300">energia</text>
+           </svg>
         </div>
-
-        <div class="mt-6">
-          <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
-          <div class="space-y-4">
-            <div>
-              <label for="mes-referencia-processador" class="block text-sm font-medium mb-1">Mês de Referência</label>
-              <input type="month" id="mes-referencia-processador" class="input">
-            </div>
-            <div>
-              <label for="data-vencimento-processador" class="block text-sm font-medium mb-1">Data de Vencimento</label>
-              <input type="date" id="data-vencimento-processador" class="input">
-            </div>
-          </div>
-        </div>
-
-        <button id="process-btn-processador" class="w-full btn btn-primary text-lg py-3 mt-6" disabled>
-          <i class="fas fa-cogs mr-2"></i>Processar Planilha
-        </button>
+        <h1 class="text-display text-4xl mb-4">Gestão Inteligente de Faturas</h1>
+        <p class="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+          Sistema unificado para processamento, geração e auditoria de faturas de energia.
+        </p>
       </div>
 
-      <div class="right-panel" id="result-container-processador">
-        <h2 class="text-xl font-semibold mb-4">3. Resultados</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
         
-        <div id="empty-state-processador" class="text-center text-gray-500 py-20">
-          <i class="fas fa-table text-6xl mb-4 text-gray-300"></i>
-          <p class="font-semibold text-lg">Aguardando dados</p>
-          <p class="text-sm mt-2">Carregue uma planilha e clique em processar</p>
+        <a href="#/processador" class="panel-card interactive group relative overflow-hidden text-left h-full flex flex-col delay-100 animate-slide-up" style="animation-fill-mode: backwards;">
+          <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+            <i class="fas fa-cogs text-9xl"></i>
+          </div>
+          <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform duration-300">
+            <i class="fas fa-microchip"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-2">Processador</h3>
+          <p class="text-gray-500 text-sm leading-relaxed mb-4 flex-grow">
+            Importe planilhas brutas, valide dados automaticamente e calcule economias em lote.
+          </p>
+          <div class="flex items-center text-blue-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+            Começar <i class="fas fa-chevron-right ml-2 text-xs"></i>
+          </div>
+        </a>
+
+        <a href="#/gerador" class="panel-card interactive group relative overflow-hidden text-left h-full flex flex-col delay-200 animate-slide-up" style="animation-fill-mode: backwards;">
+          <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+            <i class="fas fa-file-pdf text-9xl"></i>
+          </div>
+          <div class="w-12 h-12 bg-green-100 text-green-600 rounded-xl flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform duration-300">
+            <i class="fas fa-print"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-2">Gerador PDF</h3>
+          <p class="text-gray-500 text-sm leading-relaxed mb-4 flex-grow">
+            Emissão em massa de faturas personalizadas com cálculo de CO₂ e árvores salvas.
+          </p>
+          <div class="flex items-center text-green-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+            Acessar <i class="fas fa-chevron-right ml-2 text-xs"></i>
+          </div>
+        </a>
+
+        <a href="#/corretor" class="panel-card interactive group relative overflow-hidden text-left h-full flex flex-col delay-300 animate-slide-up" style="animation-fill-mode: backwards;">
+          <div class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
+            <i class="fas fa-edit text-9xl"></i>
+          </div>
+          <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-xl mb-4 group-hover:scale-110 transition-transform duration-300">
+            <i class="fas fa-wand-magic-sparkles"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-2">Corretor</h3>
+          <p class="text-gray-500 text-sm leading-relaxed mb-4 flex-grow">
+            Ajuste fino de valores, recálculo instantâneo e correção de anomalias pontuais.
+          </p>
+          <div class="flex items-center text-purple-600 font-semibold text-sm group-hover:translate-x-1 transition-transform">
+            Editar <i class="fas fa-chevron-right ml-2 text-xs"></i>
+          </div>
+        </a>
+
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 opacity-70 animate-fade-in delay-300">
+        <div class="text-center p-4">
+          <div class="text-2xl font-bold text-gray-900">100%</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Navegador</div>
         </div>
-
-        <div id="stats-container-processador" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="card bg-primary/5 border-primary/20 text-center">
-                <div id="stat-total" class="text-3xl font-bold text-primary mb-1">0</div>
-                <div class="text-sm text-text-muted">Total de Clientes</div>
-            </div>
-            </div>
-
-        <div id="table-container-processador" class="hidden overflow-x-auto">
-          <table class="w-full border-collapse">
-            <thead>
-              <tr class="bg-gray-100 border-b-2 border-gray-300">
-                <th class="text-left p-3 font-semibold">Cliente</th>
-                <th class="text-left p-3 font-semibold">Instalação</th>
-                <th class="text-right p-3 font-semibold">Total</th>
-              </tr>
-            </thead>
-            <tbody id="table-body-processador"></tbody>
-          </table>
+        <div class="text-center p-4">
+          <div class="text-2xl font-bold text-gray-900">PDF</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Exportação</div>
+        </div>
+        <div class="text-center p-4">
+          <div class="text-2xl font-bold text-gray-900">Auto</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Validação</div>
+        </div>
+        <div class="text-center p-4">
+          <div class="text-2xl font-bold text-gray-900">Secure</div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide mt-1">Local Data</div>
         </div>
       </div>
     </div>
   `;
 }
 
-export function initProcessador() {
-  // ... Seleção de elementos DOM ...
-  const fileUpload = document.getElementById('file-upload-processador');
-  const dropZone = document.getElementById('drop-zone-processador');
-  const processBtn = document.getElementById('process-btn-processador');
-
-  // Inicializar componente de Status Global
-  // Precisamos instanciar passando o ID do container que acabamos de criar no HTML
-  const statusComponent = new FileStatus('global-file-status');
-
-  // Se inscrever para atualizações de estado para atualizar a UI local
-  stateManager.subscribe((state, action) => {
-    updateLocalUI(state);
-  });
-
-  // Manipular Upload com verificação de Reset
-  const handleUpload = (file) => {
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      notification.error(validation.error);
-      return;
-    }
-
-    // Lógica de confirmação de troca de arquivo
-    const proceed = () => {
-      stateManager.setFile(file);
-      // Limpa o input file para permitir selecionar o mesmo arquivo novamente se necessário
-      fileUpload.value = '';
-    };
-
-    if (stateManager.hasFile()) {
-      // Se já tem arquivo, fileStatus.requestFileChange gerencia o confirm e o reset
-      // Se retornar true, o usuário confirmou (ou lógica interna tratou)
-      if (confirm('Carregar um novo arquivo apagará os dados atuais. Continuar?')) {
-        stateManager.reset();
-        proceed();
-      }
-    } else {
-      proceed();
-    }
-  };
-
-  dropZone?.addEventListener('click', () => fileUpload.click());
-  fileUpload?.addEventListener('change', (e) => e.target.files[0] && handleUpload(e.target.files[0]));
-
-  // Drag and drop events... (mesma lógica, chamando handleUpload)
-
-  // Processar
-  processBtn?.addEventListener('click', handleProcess);
-
-  // Inicializa UI com estado atual (caso o usuário tenha vindo de outra aba)
-  updateLocalUI(stateManager.getState());
-
-  // Inicializar Pyodide (mantém igual)
-  initPyodideForProcessador();
+export function initHome() {
+  // Dashboard não precisa de inicialização específica
+  // Apenas renderiza o conteúdo estático
+  console.log('Dashboard Home carregado');
 }
-
-/**
- * Atualiza a UI local baseada no estado global
- */
-function updateLocalUI(state) {
-  const processBtn = document.getElementById('process-btn-processador');
-  const uploadCard = document.getElementById('upload-card-processador');
-  const dropZone = document.getElementById('drop-zone-processador');
-
-  // Se temos arquivo, o botão de processar pode ser habilitado (se datas estiverem ok)
-  // Se já temos dados processados, mostramos a tabela
-
-  if (state.file) {
-    // Arquivo carregado: muda estilo da dropzone
-    dropZone.classList.add('border-success', 'bg-green-50');
-    dropZone.innerHTML = `
-            <i class="fas fa-check-circle text-4xl text-success mb-2"></i>
-            <p class="font-semibold text-success">Arquivo Carregado</p>
-            <p class="text-xs text-text-muted">Clique para substituir</p>
-        `;
-  } else {
-    // Sem arquivo: estilo padrão
-    dropZone.classList.remove('border-success', 'bg-green-50');
-    dropZone.innerHTML = `
-            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-            <p class="font-semibold">Arraste e solte ou clique</p>
-            <p class="text-sm text-text-muted mt-1">Formatos: .xlsx, .xlsm, .xls</p>
-        `;
-  }
-
-  if (state.processedData.length > 0) {
-    renderResults(state.processedData);
-    document.getElementById('empty-state-processador').classList.add('hidden');
-    document.getElementById('table-container-processador').classList.remove('hidden');
-    document.getElementById('stats-container-processador').classList.remove('hidden');
-  } else {
-    document.getElementById('empty-state-processador').classList.remove('hidden');
-    document.getElementById('table-container-processador').classList.add('hidden');
-    document.getElementById('stats-container-processador').classList.add('hidden');
-  }
-
-  validateForm(); // Revalida botão de processar
-}
-
-async function handleProcess() {
-  const state = stateManager.getState();
-  const mesRef = document.getElementById('mes-referencia-processador').value;
-  const dataVenc = document.getElementById('data-vencimento-processador').value;
-
-  if (!state.file) {
-    notification.error("Nenhum arquivo carregado.");
-    return;
-  }
-
-  try {
-    const btn = document.getElementById('process-btn-processador');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="loader"></div> Processando...';
-
-    // Atualiza params no estado global
-    stateManager.setParams({ mesReferencia: mesRef, dataVencimento: dataVenc });
-
-    // Processa
-    const data = await excelProcessor.processFile(state.file, mesRef, dataVenc);
-
-    // Salva resultado no estado global (isso vai disparar updateLocalUI via subscribe)
-    stateManager.setProcessedData(data);
-
-    notification.success("Processamento concluído!");
-  } catch (e) {
-    notification.error(e.message);
-  } finally {
-    // Reset botão (será tratado pelo updateLocalUI, mas por segurança)
-    validateForm();
-  }
-}
-
-// ... Resto das funções (validateForm, renderResults) ...
