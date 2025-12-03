@@ -68,6 +68,188 @@
             --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
+        /* Dark mode automático baseado no sistema */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-body: #0F0F23;
+        --bg-card: #1A1A2E;
+        --text-primary: #E0E0E0;
+        --text-secondary: #A0A0A0;
+        --accent-color: #4A90E2;
+        --accent-hover: #5BA3F5;
+
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+        background-color: var(--bg-body);
+        color: var(--text-primary);
+    }
+
+    .card {
+        background: var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .input {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: var(--text-primary);
+    }
+
+    .input:focus {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--accent-color);
+    }
+
+    .drop-zone {
+        border-color: rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drop-active {
+        border-color: var(--accent-color);
+        background: rgba(74, 144, 226, 0.1);
+    }
+
+    .nav-link {
+        color: var(--text-secondary);
+    }
+
+    .nav-link:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-link.active {
+        color: #fff;
+        background: var(--accent-color);
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Tabelas */
+    table {
+        color: var(--text-primary);
+    }
+
+    thead tr {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+
+    tbody tr {
+        border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    tbody tr:nth-child(even) {
+        background: rgba(255, 255, 255, 0.02) !important;
+    }
+
+    /* Cards especiais */
+    .bg-gray-50 {
+        background: rgba(255, 255, 255, 0.05) !important;
+    }
+
+    .bg-gray-100 {
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .text-gray-500 {
+        color: var(--text-secondary) !important;
+    }
+
+    .text-gray-600 {
+        color: #B0B0B0 !important;
+    }
+
+    .text-gray-700 {
+        color: #C0C0C0 !important;
+    }
+
+    .border-gray-200 {
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+
+    .border-gray-300 {
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+
+    /* Loading overlay */
+    #loading-overlay {
+        background: rgba(15, 15, 35, 0.95) !important;
+    }
+
+    /* Progress overlay */
+    #progress-overlay {
+        background: rgba(15, 15, 35, 0.95) !important;
+    }
+
+    .bg-gray-200 {
+        background: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Modal */
+    #edit-modal-corretor .bg-white {
+        background: var(--bg-card) !important;
+    }
+
+    /* Footer */
+    footer {
+        background: var(--bg-card) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Header */
+    header {
+        background: rgba(26, 26, 46, 0.8) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Stats cards com cores */
+    .bg-primary\/5 {
+        background: rgba(74, 144, 226, 0.15) !important;
+    }
+
+    .bg-success\/5 {
+        background: rgba(52, 199, 89, 0.15) !important;
+    }
+
+    .bg-warning\/5 {
+        background: rgba(255, 159, 10, 0.15) !important;
+    }
+
+    .bg-secondary\/5 {
+        background: rgba(134, 134, 139, 0.15) !important;
+    }
+
+    .border-primary\/20 {
+        border-color: rgba(74, 144, 226, 0.3) !important;
+    }
+
+    .border-success\/20 {
+        border-color: rgba(52, 199, 89, 0.3) !important;
+    }
+
+    .border-warning\/20 {
+        border-color: rgba(255, 159, 10, 0.3) !important;
+    }
+
+    .border-secondary\/20 {
+        border-color: rgba(134, 134, 139, 0.3) !important;
+    }
+}
+
+
         body {
             background-color: var(--bg-body);
             color: var(--text-primary);
