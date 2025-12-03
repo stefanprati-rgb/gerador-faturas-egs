@@ -8,7 +8,7 @@ import { validateFile, validateMonth, validateDate } from '../../core/validators
 import { normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
 import progressBar from '../../components/ProgressBar.js';
-import { getPDFTemplate } from './pdfTemplate.js';
+
 
 let clientData = [];
 let selectedFile = null;
@@ -17,12 +17,6 @@ let selectedFile = null;
  * Renderiza a interface do gerador
  */
 export async function renderGerador() {
-  // Injetar template PDF no body se ainda não existir
-  if (!document.getElementById('pdf-container')) {
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = getPDFTemplate();
-    document.body.appendChild(tempDiv.firstElementChild);
-  }
 
   return `
     <div class="max-w-6xl mx-auto">

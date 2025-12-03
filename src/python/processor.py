@@ -117,6 +117,23 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         col_doc = pick_col(df, "Documento", "CPF/CNPJ")
         col_consumo_qtd = pick_col(df, "CONSUMO_FP")
         col_comp_qtd = pick_col(df, "CRÉD. CONSUMIDO_FP")
+        
+        # Validação de colunas críticas
+        required_cols = {
+            'ref': col_ref,
+            'inst': col_inst,
+            'nome': col_nome,
+            'consumo_qtd': col_consumo_qtd,
+            'comp_qtd': col_comp_qtd
+        }
+        
+        missing = [k for k, v in required_cols.items() if not v]
+        if missing:
+            return json.dumps({
+                "error": f"Colunas essenciais não encontradas: {', '.join(missing)}. "
+                        f"Colunas disponíveis: {', '.join(df.columns[:10])}..."
+            })
+        
         col_tarifa_consumo = pick_col(df, "TARIFA FP")
         col_tarifa_comp_ev = pick_col(df, "TARIFA_Comp_FP")
         col_tarifa_comp_dist = pick_col(df, "TARIFA DE ENERGIA COMPENSADA")

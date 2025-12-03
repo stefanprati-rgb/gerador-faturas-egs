@@ -184,6 +184,33 @@ export function initProcessador() {
   if (sendToCorretorBtn) {
     sendToCorretorBtn.addEventListener('click', sendToCorretor);
   }
+
+  // Inicializar Pyodide
+  initPyodideForProcessador();
+}
+
+let isPyodideReady = false;
+
+/**
+ * Inicializa Pyodide para o processador
+ */
+async function initPyodideForProcessador() {
+  try {
+    const loadingStatus = document.getElementById('loading-status');
+    if (loadingStatus) loadingStatus.textContent = 'Carregando motor de processamento...';
+
+    await excelProcessor.init((status) => {
+      if (loadingStatus) loadingStatus.textContent = status;
+    });
+
+    isPyodideReady = true;
+    validateForm();
+
+    notification.info('Sistema de processamento pronto!');
+  } catch (error) {
+    console.error('Erro ao inicializar Pyodide:', error);
+    notification.error('Falha ao carregar motor de processamento.');
+  }
 }
 
 /**
@@ -249,7 +276,8 @@ function validateForm() {
 
   const isReady = selectedFile &&
     mesReferenciaEl?.value &&
-    dataVencimentoEl?.value;
+    dataVencimentoEl?.value &&
+    isPyodideReady;
 
   processBtn.disabled = !isReady;
   processBtn.classList.toggle('opacity-50', !isReady);
