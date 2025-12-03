@@ -4,6 +4,7 @@ import router from './router.js';
 import { renderGerador, initGerador } from './modules/gerador/index.js';
 import { renderProcessador, initProcessador } from './modules/processador/index.js';
 import { renderCorretor, initCorretor } from './modules/corretor/index.js';
+import excelProcessor from './core/excelProcessor.js'; // [Adicionado] Importar o processador
 import notification from './components/Notification.js';
 
 /**
@@ -20,7 +21,7 @@ class App {
      */
     async init() {
         try {
-            // Mostrar loading
+            // Mostrar loading inicial rápido
             this.showLoading('Inicializando aplicação...');
 
             // Configurar menu mobile
@@ -32,16 +33,38 @@ class App {
             // Inicializar router
             router.init();
 
-            // Esconder loading
+            // Esconder loading da interface (a app já está interativa)
             this.hideLoading();
 
-            // Mensagem de boas-vindas
+            // [Melhoria UX] Mensagem de boas-vindas
             notification.success('Sistema carregado com sucesso!', 3000);
+
+            // [Melhoria Performance] Pré-carregar o Pyodide em background
+            this.preloadEngine();
 
         } catch (error) {
             console.error('Erro ao inicializar aplicação:', error);
-            this.loadingStatus.textContent = 'Erro ao carregar aplicação';
+            if (this.loadingStatus) this.loadingStatus.textContent = 'Erro ao carregar aplicação';
             notification.error('Erro ao carregar aplicação. Por favor, recarregue a página.');
+        }
+    }
+
+    /**
+     * Inicia o carregamento do motor Python em background
+     */
+    async preloadEngine() {
+        console.log('Iniciando pré-carregamento do Pyodide...');
+        try {
+            // Inicia o init sem bloquear a UI. 
+            // O callback de status é opcional aqui, pois é background.
+            await excelProcessor.init((status) => {
+                console.log(`[Pyodide Background]: ${status}`);
+            });
+            console.log('Motor Python pronto para uso!');
+            // Opcional: Notificar utilizador que o motor está pronto se quiser ser muito explícito
+            // notification.info('Motor de processamento pronto.');
+        } catch (e) {
+            console.warn('Pré-carregamento do Pyodide falhou (será tentado novamente ao usar a ferramenta).', e);
         }
     }
 
@@ -49,12 +72,9 @@ class App {
      * Registra as rotas da aplicação
      */
     registerRoutes() {
-        // Rota inicial
         // Rota inicial - Redireciona para o Processador
         router.register('/', async () => {
             router.navigate('/processador');
-            // Opcional: renderizar o processador diretamente se a navegação não disparar renderização imediata
-            // mas o router.navigate deve lidar com isso via hashchange
         });
 
         // Gerador de Faturas
