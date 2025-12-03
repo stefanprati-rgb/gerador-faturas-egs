@@ -16,105 +16,101 @@ let selectedFile = null;
  */
 export async function renderProcessador() {
   return `
-    <div class="max-w-6xl mx-auto">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Coluna Esquerda: Controles -->
-        <div class="lg:col-span-1 space-y-4">
-          <!-- Upload de Arquivo -->
-          <div class="card !p-4">
-            <h2 class="text-xl font-semibold mb-4">1. Carregar Planilha</h2>
-            <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
-            <div id="drop-zone-processador" class="drop-zone">
-              <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-              <p class="font-semibold">Arraste e solte ou clique</p>
-              <p class="text-sm text-text-muted mt-1">Formatos: .xlsx, .xlsm, .xls</p>
-            </div>
-            <p id="file-selected-processador" class="mt-3 text-sm font-semibold text-success hidden"></p>
+    <div class="main-grid">
+      <!-- Coluna Esquerda: Controles -->
+      <div class="left-panel">
+        <!-- Upload de Arquivo -->
+        <div>
+          <h2 class="text-xl font-semibold mb-4">1. Carregar Planilha</h2>
+          <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
+          <div id="drop-zone-processador" class="drop-zone">
+            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+            <p class="font-semibold">Arraste e solte ou clique</p>
+            <p class="text-sm text-text-muted mt-1">Formatos: .xlsx, .xlsm, .xls</p>
           </div>
-
-          <!-- Parâmetros -->
-          <div class="card !p-4">
-            <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
-            <div class="space-y-4">
-              <div>
-                <label for="mes-referencia-processador" class="block text-sm font-medium mb-1">Mês de Referência</label>
-                <input type="month" id="mes-referencia-processador" class="input">
-              </div>
-              <div>
-                <label for="data-vencimento-processador" class="block text-sm font-medium mb-1">Data de Vencimento</label>
-                <input type="date" id="data-vencimento-processador" class="input">
-              </div>
-            </div>
-          </div>
-
-          <!-- Botão Processar -->
-          <button id="process-btn-processador" class="w-full btn btn-primary text-lg py-3" disabled>
-            <i class="fas fa-cogs mr-2"></i>Processar Planilha
-          </button>
+          <p id="file-selected-processador" class="mt-3 text-sm font-semibold text-success hidden"></p>
         </div>
 
-        <!-- Coluna Direita: Resultados -->
-        <div class="lg:col-span-2 card">
-          <h2 class="text-xl font-semibold mb-4">3. Resultados</h2>
-          
-          <div id="result-container-processador">
-            <div id="empty-state-processador" class="text-center text-gray-500 py-20">
-              <i class="fas fa-table text-6xl mb-4 text-gray-300"></i>
-              <p class="font-semibold text-lg">Aguardando processamento</p>
-              <p class="text-sm mt-2">Os resultados aparecerão aqui após o processamento</p>
+        <!-- Parâmetros -->
+        <div>
+          <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
+          <div class="space-y-4">
+            <div>
+              <label for="mes-referencia-processador" class="block text-sm font-medium mb-1">Mês de Referência</label>
+              <input type="month" id="mes-referencia-processador" class="input">
             </div>
-
-            <!-- Estatísticas -->
-            <div id="stats-container-processador" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div class="card bg-primary/5 border-primary/20 text-center">
-                <div id="stat-total" class="text-3xl font-bold text-primary mb-1">0</div>
-                <div class="text-sm text-text-muted">Total de Clientes</div>
-              </div>
-              <div class="card bg-success/5 border-success/20 text-center">
-                <div id="stat-economia" class="text-2xl font-bold text-success mb-1">R$ 0,00</div>
-                <div class="text-sm text-text-muted">Economia Total</div>
-              </div>
-              <div class="card bg-warning/5 border-warning/20 text-center">
-                <div id="stat-co2" class="text-2xl font-bold text-warning mb-1">0 kg</div>
-                <div class="text-sm text-text-muted">CO₂ Evitado</div>
-              </div>
-              <div class="card bg-secondary/5 border-secondary/20 text-center">
-                <div id="stat-arvores" class="text-2xl font-bold text-secondary mb-1">0</div>
-                <div class="text-sm text-text-muted">Árvores</div>
-              </div>
-            </div>
-
-            <!-- Tabela de Dados -->
-            <div id="table-container-processador" class="hidden overflow-x-auto">
-              <p class="text-sm text-gray-500 mb-2 italic">* Mostrando apenas os primeiros 20 registros para visualização rápida.</p>
-              <table class="w-full border-collapse">
-                <thead>
-                  <tr class="bg-gray-100 border-b-2 border-gray-300">
-                    <th class="text-left p-3 font-semibold">Cliente</th>
-                    <th class="text-left p-3 font-semibold">Instalação</th>
-                    <th class="text-right p-3 font-semibold">Economia Mês</th>
-                    <th class="text-right p-3 font-semibold">Economia Total</th>
-                    <th class="text-right p-3 font-semibold">Total a Pagar</th>
-                  </tr>
-                </thead>
-                <tbody id="table-body-processador">
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Botões de Ação -->
-            <div id="actions-container-processador" class="hidden mt-6 flex gap-3 flex-wrap">
-              <button id="send-to-corretor-btn" class="btn btn-primary flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
-                <i class="fas fa-edit mr-2"></i>Corrigir/Editar Faturas
-              </button>
-              <button id="export-json-btn" class="btn btn-secondary flex-1">
-                <i class="fas fa-file-code mr-2"></i>Exportar JSON
-              </button>
-              <button id="export-csv-btn" class="btn btn-secondary flex-1">
-                <i class="fas fa-file-csv mr-2"></i>Exportar CSV
-              </button>
+            <div>
+              <label for="data-vencimento-processador" class="block text-sm font-medium mb-1">Data de Vencimento</label>
+              <input type="date" id="data-vencimento-processador" class="input">
             </div>
           </div>
+        </div>
+
+        <!-- Botão Processar -->
+        <button id="process-btn-processador" class="w-full btn btn-primary text-lg py-3" disabled>
+          <i class="fas fa-cogs mr-2"></i>Processar Planilha
+        </button>
+      </div>
+
+      <!-- Coluna Direita: Resultados -->
+      <div class="right-panel" id="result-container-processador">
+        <h2 class="text-xl font-semibold mb-4">3. Resultados</h2>
+        
+        <div id="empty-state-processador" class="text-center text-gray-500 py-20">
+          <i class="fas fa-table text-6xl mb-4 text-gray-300"></i>
+          <p class="font-semibold text-lg">Aguardando processamento</p>
+          <p class="text-sm mt-2">Os resultados aparecerão aqui após o processamento</p>
+        </div>
+
+        <!-- Estatísticas -->
+        <div id="stats-container-processador" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="card bg-primary/5 border-primary/20 text-center">
+            <div id="stat-total" class="text-3xl font-bold text-primary mb-1">0</div>
+            <div class="text-sm text-text-muted">Total de Clientes</div>
+          </div>
+          <div class="card bg-success/5 border-success/20 text-center">
+            <div id="stat-economia" class="text-2xl font-bold text-success mb-1">R$ 0,00</div>
+            <div class="text-sm text-text-muted">Economia Total</div>
+          </div>
+          <div class="card bg-warning/5 border-warning/20 text-center">
+            <div id="stat-co2" class="text-2xl font-bold text-warning mb-1">0 kg</div>
+            <div class="text-sm text-text-muted">CO₂ Evitado</div>
+          </div>
+          <div class="card bg-secondary/5 border-secondary/20 text-center">
+            <div id="stat-arvores" class="text-2xl font-bold text-secondary mb-1">0</div>
+            <div class="text-sm text-text-muted">Árvores</div>
+          </div>
+        </div>
+
+        <!-- Tabela de Dados -->
+        <div id="table-container-processador" class="hidden overflow-x-auto">
+          <p class="text-sm text-gray-500 mb-2 italic">* Mostrando apenas os primeiros 20 registros para visualização rápida.</p>
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="bg-gray-100 border-b-2 border-gray-300">
+                <th class="text-left p-3 font-semibold">Cliente</th>
+                <th class="text-left p-3 font-semibold">Instalação</th>
+                <th class="text-right p-3 font-semibold">Economia Mês</th>
+                <th class="text-right p-3 font-semibold">Economia Total</th>
+                <th class="text-right p-3 font-semibold">Total a Pagar</th>
+              </tr>
+            </thead>
+            <tbody id="table-body-processador">
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Botões de Ação -->
+        <div id="actions-container-processador" class="hidden mt-6 flex gap-3 flex-wrap">
+          <button id="send-to-corretor-btn" class="btn btn-primary flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+            <i class="fas fa-edit mr-2"></i>Corrigir/Editar Faturas
+          </button>
+          <button id="export-json-btn" class="btn btn-secondary flex-1">
+            <i class="fas fa-file-code mr-2"></i>Exportar JSON
+          </button>
+          <button id="export-csv-btn" class="btn btn-secondary flex-1">
+            <i class="fas fa-file-csv mr-2"></i>Exportar CSV
+          </button>
         </div>
       </div>
     </div>

@@ -43,351 +43,7 @@
                     },
                     fontFamily: {
                         sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-
-    <style>
-        /* Apple-like Design System Overrides */
-        :root {
-            --bg-body: #F5F5F7;
-            --bg-card: #FFFFFF;
-            --text-primary: #1D1D1F;
-            --text-secondary: #86868B;
-            --accent-color: #0071E3;
-            --accent-hover: #0077ED;
-
-            --radius-lg: 18px;
-            --radius-md: 12px;
-
-            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06);
-
-            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-
-        /* Dark mode automático baseado no sistema */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-body: #0F0F23;
-        --bg-card: #1A1A2E;
-        --text-primary: #E0E0E0;
-        --text-secondary: #A0A0A0;
-        --accent-color: #4A90E2;
-        --accent-hover: #5BA3F5;
-
-        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-        --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
-    }
-
-    body {
-        background-color: var(--bg-body);
-        color: var(--text-primary);
-    }
-
-    .card {
-        background: var(--bg-card);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .input {
-        background: rgba(255, 255, 255, 0.05);
-        border-color: rgba(255, 255, 255, 0.2);
-        color: var(--text-primary);
-    }
-
-    .input:focus {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: var(--accent-color);
-    }
-
-    .drop-zone {
-        border-color: rgba(255, 255, 255, 0.3);
-        background: rgba(255, 255, 255, 0.03);
-    }
-
-    .drop-zone:hover,
-    .drop-zone.drop-active {
-        border-color: var(--accent-color);
-        background: rgba(74, 144, 226, 0.1);
-    }
-
-    .nav-link {
-        color: var(--text-secondary);
-    }
-
-    .nav-link:hover {
-        color: var(--text-primary);
-        background: rgba(255, 255, 255, 0.05);
-    }
-
-    .nav-link.active {
-        color: #fff;
-        background: var(--accent-color);
-    }
-
-    .btn-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text-primary);
-    }
-
-    .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.15);
-    }
-
-    /* Tabelas */
-    table {
-        color: var(--text-primary);
-    }
-
-    thead tr {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-    }
-
-    tbody tr {
-        border-color: rgba(255, 255, 255, 0.1) !important;
-    }
-
-    tbody tr:nth-child(even) {
-        background: rgba(255, 255, 255, 0.02) !important;
-    }
-
-    /* Cards especiais */
-    .bg-gray-50 {
-        background: rgba(255, 255, 255, 0.05) !important;
-    }
-
-    .bg-gray-100 {
-        background: rgba(255, 255, 255, 0.08) !important;
-    }
-
-    .text-gray-500 {
-        color: var(--text-secondary) !important;
-    }
-
-    .text-gray-600 {
-        color: #B0B0B0 !important;
-    }
-
-    .text-gray-700 {
-        color: #C0C0C0 !important;
-    }
-
-    .border-gray-200 {
-        border-color: rgba(255, 255, 255, 0.15) !important;
-    }
-
-    .border-gray-300 {
-        border-color: rgba(255, 255, 255, 0.2) !important;
-    }
-
-    /* Loading overlay */
-    #loading-overlay {
-        background: rgba(15, 15, 35, 0.95) !important;
-    }
-
-    /* Progress overlay */
-    #progress-overlay {
-        background: rgba(15, 15, 35, 0.95) !important;
-    }
-
-    .bg-gray-200 {
-        background: rgba(255, 255, 255, 0.1) !important;
-    }
-
-    /* Modal */
-    #edit-modal-corretor .bg-white {
-        background: var(--bg-card) !important;
-    }
-
-    /* Footer */
-    footer {
-        background: var(--bg-card) !important;
-        border-color: rgba(255, 255, 255, 0.1) !important;
-    }
-
-    /* Header */
-    header {
-        background: rgba(26, 26, 46, 0.8) !important;
-        border-color: rgba(255, 255, 255, 0.1) !important;
-    }
-
-    /* Stats cards com cores */
-    .bg-primary\/5 {
-        background: rgba(74, 144, 226, 0.15) !important;
-    }
-
-    .bg-success\/5 {
-        background: rgba(52, 199, 89, 0.15) !important;
-    }
-
-    .bg-warning\/5 {
-        background: rgba(255, 159, 10, 0.15) !important;
-    }
-
-    .bg-secondary\/5 {
-        background: rgba(134, 134, 139, 0.15) !important;
-    }
-
-    .border-primary\/20 {
-        border-color: rgba(74, 144, 226, 0.3) !important;
-    }
-
-    .border-success\/20 {
-        border-color: rgba(52, 199, 89, 0.3) !important;
-    }
-
-    .border-warning\/20 {
-        border-color: rgba(255, 159, 10, 0.3) !important;
-    }
-
-    .border-secondary\/20 {
-        border-color: rgba(134, 134, 139, 0.3) !important;
-    }
-}
-
-
-        body {
-            background-color: var(--bg-body);
-            color: var(--text-primary);
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* Cards */
-        .card {
-            background: var(--bg-card);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-sm);
-            border: 1px solid rgba(0, 0, 0, 0.02);
-            padding: 20px;
-            transition: var(--transition);
-        }
-
-        .card:hover {
-            box-shadow: var(--shadow-md);
-            transform: translateY(-2px);
-        }
-
-        /* Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 10px 22px;
-            border-radius: 999px;
-            /* Pill shape */
-            font-weight: 500;
-            font-size: 14px;
-            transition: var(--transition);
-            cursor: pointer;
-            border: none;
-            outline: none;
-        }
-
-        .btn-primary {
-            background: var(--accent-color);
-            color: white;
-            box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background: var(--accent-hover);
-            box-shadow: 0 6px 16px rgba(0, 113, 227, 0.4);
-            transform: scale(1.02);
-        }
-
-        .btn-secondary {
-            background: rgba(0, 0, 0, 0.05);
-            color: var(--text-primary);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(0, 0, 0, 0.08);
-        }
-
-        /* Inputs */
-        .input {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: var(--radius-md);
-            border: 1px solid #D2D2D7;
-            background: rgba(255, 255, 255, 0.8);
-            font-size: 15px;
-            color: var(--text-primary);
-            transition: var(--transition);
-        }
-
-        .input:focus {
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
-            outline: none;
-            background: #fff;
-        }
-
-        /* Navigation Tabs */
-        .nav-link {
-            padding: 10px 20px;
-            border-radius: 999px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            transition: var(--transition);
-            text-decoration: none;
-        }
-
-        .nav-link:hover {
-            color: var(--text-primary);
-            background: rgba(0, 0, 0, 0.03);
-        }
-
-        .nav-link.active {
-            color: var(--text-primary);
-            background: #fff;
-            box-shadow: var(--shadow-sm);
-            font-weight: 600;
-        }
-
-        /* Drop Zone */
-        .drop-zone {
-            border: 2px dashed #D2D2D7;
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            text-align: center;
-            transition: var(--transition);
-            background: #FAFAFA;
-            cursor: pointer;
-        }
-
-        .drop-zone:hover,
-        .drop-zone.drop-active {
-            border-color: var(--accent-color);
-            background: rgba(0, 113, 227, 0.05);
-        }
-
-        /* Loader */
-        .loader {
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(0, 113, 227, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--accent-color);
-            animation: spin 0.8s linear infinite;
-            display: inline-block;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-    </style>
-</head>
-
-<body class="bg-background text-text font-sans antialiased">
-    <!-- Container Principal -->
-    <div id="app" class="min-h-screen flex flex-col">
+    < div id="app" class= "min-h-screen flex flex-col" >
         <!-- Header -->
         <header class="bg-white/80 backdrop-blur-md border-b border-border sticky top-0 z-30">
             <div class="container mx-auto px-4 py-4">
@@ -430,43 +86,43 @@
             </div>
         </header>
 
-        <!-- Conteúdo Principal -->
+        <!-- Conteúdo Principal -- >
         <main id="main-content" class="flex-grow container mx-auto px-4 py-8">
             <!-- O conteúdo será carregado dinamicamente aqui -->
         </main>
 
-        <!-- Footer -->
-        <footer class="bg-white border-t border-border mt-auto">
-            <div class="container mx-auto px-4 py-8">
-                <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-                    <div class="text-sm text-text-muted">
-                        © 2025 EGS Energia. Todos os direitos reservados.
-                    </div>
-                    <div class="flex items-center space-x-6 text-sm">
-                        <a href="mailto:atendimento@egsenergia.com.br"
-                            class="flex items-center text-text-muted hover:text-primary transition-colors">
-                            <i class="fas fa-envelope mr-2"></i>
-                            atendimento@egsenergia.com.br
-                        </a>
-                        <a href="https://wa.me/5511996703826" target="_blank"
-                            class="flex items-center text-text-muted hover:text-success transition-colors">
-                            <i class="fab fa-whatsapp mr-2"></i>
-                            (11) 99670-3826
-                        </a>
+        <!-- Footer-- >
+            <footer class="bg-white border-t border-border mt-auto">
+                <div class="container mx-auto px-4 py-8">
+                    <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+                        <div class="text-sm text-text-muted">
+                            © 2025 EGS Energia. Todos os direitos reservados.
+                        </div>
+                        <div class="flex items-center space-x-6 text-sm">
+                            <a href="mailto:atendimento@egsenergia.com.br"
+                                class="flex items-center text-text-muted hover:text-primary transition-colors">
+                                <i class="fas fa-envelope mr-2"></i>
+                                atendimento@egsenergia.com.br
+                            </a>
+                            <a href="https://wa.me/5511996703826" target="_blank"
+                                class="flex items-center text-text-muted hover:text-success transition-colors">
+                                <i class="fab fa-whatsapp mr-2"></i>
+                                (11) 99670-3826
+                            </a>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </footer>
-    </div>
+            </footer>
+    </div >
 
-    <!-- Loading Overlay -->
+    < !--Loading Overlay-- >
     <div id="loading-overlay"
         class="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
         <div class="loader"></div>
         <p id="loading-status" class="mt-4 text-gray-700 font-medium">Carregando ambiente...</p>
     </div>
 
-    <!-- Progress Overlay -->
+    <!--Progress Overlay-- >
     <div id="progress-overlay"
         class="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-40 hidden">
         <div class="w-64 bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
@@ -936,7 +592,7 @@
 
                 <!-- Scripts -->
                 <script type="module" src="/src/main.js"></script>
-            </body>
+    </body>
 
 </html>
 ```
