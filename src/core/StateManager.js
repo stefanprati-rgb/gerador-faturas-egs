@@ -11,7 +11,8 @@ class StateManager {
                 mesReferencia: '',
                 dataVencimento: ''
             },
-            processedData: []
+            processedData: [],
+            validationWarnings: [] // Novo campo para alertas de validação
         };
         this.subscribers = [];
     }
@@ -33,6 +34,9 @@ class StateManager {
             fileSize: file.size,
             uploadTime: new Date()
         };
+        // Reseta dados e warnings ao trocar arquivo
+        this.state.processedData = [];
+        this.state.validationWarnings = [];
         this.notify();
     }
 
@@ -50,6 +54,7 @@ class StateManager {
         this.state.file = null;
         this.state.meta = null;
         this.state.processedData = [];
+        this.state.validationWarnings = [];
         this.notify();
     }
 
@@ -62,10 +67,17 @@ class StateManager {
     }
 
     /**
-     * Define os dados processados
+     * Define os dados processados (aceita objeto com data e warnings)
      */
-    setProcessedData(data) {
-        this.state.processedData = data;
+    setProcessedData(result) {
+        // Suporta tanto array direto quanto objeto {data, warnings}
+        if (Array.isArray(result)) {
+            this.state.processedData = result;
+            this.state.validationWarnings = [];
+        } else {
+            this.state.processedData = result.data || [];
+            this.state.validationWarnings = result.warnings || [];
+        }
         this.notify();
     }
 
@@ -74,6 +86,7 @@ class StateManager {
      */
     clearProcessedData() {
         this.state.processedData = [];
+        this.state.validationWarnings = [];
         this.notify();
     }
 
@@ -88,7 +101,8 @@ class StateManager {
                 mesReferencia: '',
                 dataVencimento: ''
             },
-            processedData: []
+            processedData: [],
+            validationWarnings: []
         };
         this.notify();
     }
