@@ -4,9 +4,8 @@
 
 import excelProcessor from '../../core/excelProcessor.js';
 import { validateFile, validateMonth, validateDate } from '../../core/validators.js';
-import { formatCurrency, formatDate } from '../../core/formatters.js';
+import { formatCurrency } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
-import progressBar from '../../components/ProgressBar.js';
 
 let processedData = [];
 let selectedFile = null;
@@ -17,9 +16,7 @@ let selectedFile = null;
 export async function renderProcessador() {
   return `
     <div class="main-grid">
-      <!-- Coluna Esquerda: Controles -->
       <div class="left-panel">
-        <!-- Upload de Arquivo -->
         <div>
           <h2 class="text-xl font-semibold mb-4">1. Carregar Planilha</h2>
           <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
@@ -31,7 +28,6 @@ export async function renderProcessador() {
           <p id="file-selected-processador" class="mt-3 text-sm font-semibold text-success hidden"></p>
         </div>
 
-        <!-- Parâmetros -->
         <div>
           <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
           <div class="space-y-4">
@@ -46,13 +42,11 @@ export async function renderProcessador() {
           </div>
         </div>
 
-        <!-- Botão Processar -->
         <button id="process-btn-processador" class="w-full btn btn-primary text-lg py-3" disabled>
           <i class="fas fa-cogs mr-2"></i>Processar Planilha
         </button>
       </div>
 
-      <!-- Coluna Direita: Resultados -->
       <div class="right-panel" id="result-container-processador">
         <h2 class="text-xl font-semibold mb-4">3. Resultados</h2>
         
@@ -62,7 +56,6 @@ export async function renderProcessador() {
           <p class="text-sm mt-2">Os resultados aparecerão aqui após o processamento</p>
         </div>
 
-        <!-- Estatísticas -->
         <div id="stats-container-processador" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div class="card bg-primary/5 border-primary/20 text-center">
             <div id="stat-total" class="text-3xl font-bold text-primary mb-1">0</div>
@@ -82,7 +75,6 @@ export async function renderProcessador() {
           </div>
         </div>
 
-        <!-- Tabela de Dados -->
         <div id="table-container-processador" class="hidden overflow-x-auto">
           <p class="text-sm text-gray-500 mb-2 italic">* Mostrando apenas os primeiros 20 registros para visualização rápida.</p>
           <table class="w-full border-collapse">
@@ -100,7 +92,6 @@ export async function renderProcessador() {
           </table>
         </div>
 
-        <!-- Botões de Ação -->
         <div id="actions-container-processador" class="hidden mt-6 flex gap-3 flex-wrap">
           <button id="send-to-corretor-btn" class="btn btn-primary flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
             <i class="fas fa-edit mr-2"></i>Corrigir/Editar Faturas
@@ -188,7 +179,10 @@ let isPyodideReady = false;
 async function initPyodideForProcessador() {
   try {
     const loadingStatus = document.getElementById('loading-status');
-    if (loadingStatus) loadingStatus.textContent = 'Carregando motor de processamento...';
+    // Só atualiza status se realmente estiver carregando
+    if (!excelProcessor.isLoaded && loadingStatus) {
+      loadingStatus.textContent = 'Carregando motor de processamento...';
+    }
 
     await excelProcessor.init((status) => {
       if (loadingStatus) loadingStatus.textContent = status;
@@ -197,7 +191,8 @@ async function initPyodideForProcessador() {
     isPyodideReady = true;
     validateForm();
 
-    notification.info('Sistema de processamento pronto!');
+    // Notificação removida para evitar spam ao trocar de abas
+    // notification.info('Sistema de processamento pronto!');
   } catch (error) {
     console.error('Erro ao inicializar Pyodide:', error);
     notification.error('Falha ao carregar motor de processamento.');
@@ -221,13 +216,10 @@ function sendToCorretor() {
     window.dispatchEvent(new CustomEvent('egs:dataReady', { detail: processedData }));
 
     // Tentar mudar para a aba Corretor
-    const corretorTabBtn = document.querySelector('button[data-tab="corretor"]');
-    if (corretorTabBtn) {
-      corretorTabBtn.click();
-      notification.success('Dados enviados para o Corretor!');
-    } else {
-      notification.info('Vá para a aba Corretor para editar os dados.');
-    }
+    // A navegação deve ser tratada pelo Router, aqui simulamos o clique
+    window.location.hash = '/corretor';
+    notification.success('Dados enviados para o Corretor!');
+
   } catch (error) {
     console.error('Erro ao enviar para corretor:', error);
     notification.error('Erro ao transferir dados. Tente exportar JSON.');
