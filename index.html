@@ -23,27 +23,13 @@
     <!-- JSZip -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-    <!-- Tailwind CSS (via CDN para garantir compatibilidade com classes utilitárias) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#0071E3',
-                        secondary: '#86868B',
-                        success: '#34C759',
-                        warning: '#FF9F0A',
-                        danger: '#FF3B30',
-                        background: '#F5F5F7',
-                        card: '#FFFFFF',
-                        text: '#1D1D1F',
-                        'text-muted': '#86868B',
-                        border: '#D2D2D7'
-                    },
-                    fontFamily: {
-                        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
-    < div id="app" class= "min-h-screen flex flex-col" >
+    <!-- Styles -->
+    <!-- CSS importado via main.js -->
+</head>
+
+<body class="bg-background text-text font-sans antialiased">
+    <!-- Container Principal -->
+    <div id="app" class="min-h-screen flex flex-col">
         <!-- Header -->
         <header class="bg-white/80 backdrop-blur-md border-b border-border sticky top-0 z-30">
             <div class="container mx-auto px-4 py-4">
@@ -86,513 +72,312 @@
             </div>
         </header>
 
-        <!-- Conteúdo Principal -- >
+        <!-- Conteúdo Principal -->
         <main id="main-content" class="flex-grow container mx-auto px-4 py-8">
             <!-- O conteúdo será carregado dinamicamente aqui -->
         </main>
 
-        <!-- Footer-- >
-            <footer class="bg-white border-t border-border mt-auto">
-                <div class="container mx-auto px-4 py-8">
-                    <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-                        <div class="text-sm text-text-muted">
-                            © 2025 EGS Energia. Todos os direitos reservados.
-                        </div>
-                        <div class="flex items-center space-x-6 text-sm">
-                            <a href="mailto:atendimento@egsenergia.com.br"
-                                class="flex items-center text-text-muted hover:text-primary transition-colors">
-                                <i class="fas fa-envelope mr-2"></i>
-                                atendimento@egsenergia.com.br
-                            </a>
-                            <a href="https://wa.me/5511996703826" target="_blank"
-                                class="flex items-center text-text-muted hover:text-success transition-colors">
-                                <i class="fab fa-whatsapp mr-2"></i>
-                                (11) 99670-3826
-                            </a>
-                        </div>
+        <!-- Footer -->
+        <footer class="bg-white border-t border-border mt-auto">
+            <div class="container mx-auto px-4 py-8">
+                <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+                    <div class="text-sm text-text-muted">
+                        © 2025 EGS Energia. Todos os direitos reservados.
+                    </div>
+                    <div class="flex items-center space-x-6 text-sm">
+                        <a href="mailto:atendimento@egsenergia.com.br"
+                            class="flex items-center text-text-muted hover:text-primary transition-colors">
+                            <i class="fas fa-envelope mr-2"></i>
+                            atendimento@egsenergia.com.br
+                        </a>
+                        <a href="https://wa.me/5511996703826" target="_blank"
+                            class="flex items-center text-text-muted hover:text-success transition-colors">
+                            <i class="fab fa-whatsapp mr-2"></i>
+                            (11) 99670-3826
+                        </a>
                     </div>
                 </div>
-            </footer>
-    </div >
+            </div>
+        </footer>
+    </div>
 
-    < !--Loading Overlay-- >
+    <!-- Loading Overlay -->
     <div id="loading-overlay"
         class="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
         <div class="loader"></div>
         <p id="loading-status" class="mt-4 text-gray-700 font-medium">Carregando ambiente...</p>
     </div>
 
-    <!--Progress Overlay-- >
+    <!-- Progress Overlay -->
     <div id="progress-overlay"
         class="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-40 hidden">
         <div class="w-64 bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
             <div id="progress-bar" class="bg-primary h-full rounded-full transition-all duration-300" style="width: 0%">
             </div>
-            ```
-            border-radius: 999px;
-            /* Pill shape */
-            font-weight: 500;
-            font-size: 14px;
-            transition: var(--transition);
-            cursor: pointer;
-            border: none;
-            outline: none;
-            }
+        </div>
+        <p id="progress-status" class="text-gray-700 font-medium"></p>
+        <p id="progress-detail" class="text-gray-500 text-sm mt-2"></p>
+    </div>
 
-            .btn-primary {
-            background: var(--accent-color);
-            color: white;
-            box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
-            }
+    <!-- Notification Container -->
+    <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-3 pointer-events-none"></div>
 
-            .btn-primary:hover:not(:disabled) {
-            background: var(--accent-hover);
-            box-shadow: 0 6px 16px rgba(0, 113, 227, 0.4);
-            transform: scale(1.02);
-            }
+    <!-- Template PDF (oculto) -->
+    <div id="pdf-container" style="position:fixed; left:-9999px; top:0; width:210mm; z-index:-1;">
+        <div id="pdf-page"
+            style="width:210mm;height:297mm;background:#fff;color:#0B1220;padding:18mm 14mm;display:flex;flex-direction:column;font-family:'Poppins',sans-serif; font-size:10.5px; line-height:1.25; box-sizing:border-box; overflow:hidden; margin:0 auto;">
 
-            .btn-secondary {
-            background: rgba(0, 0, 0, 0.05);
-            color: var(--text-primary);
-            }
-
-            .btn-secondary:hover {
-            background: rgba(0, 0, 0, 0.08);
-            }
-
-            /* Inputs */
-            .input {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: var(--radius-md);
-            border: 1px solid #D2D2D7;
-            background: rgba(255, 255, 255, 0.8);
-            font-size: 15px;
-            color: var(--text-primary);
-            transition: var(--transition);
-            }
-
-            .input:focus {
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
-            outline: none;
-            background: #fff;
-            }
-
-            /* Navigation Tabs */
-            .nav-link {
-            padding: 10px 20px;
-            border-radius: 999px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            transition: var(--transition);
-            text-decoration: none;
-            }
-
-            .nav-link:hover {
-            color: var(--text-primary);
-            background: rgba(0, 0, 0, 0.03);
-            }
-
-            .nav-link.active {
-            color: var(--text-primary);
-            background: #fff;
-            box-shadow: var(--shadow-sm);
-            font-weight: 600;
-            }
-
-            /* Drop Zone */
-            .drop-zone {
-            border: 2px dashed #D2D2D7;
-            border-radius: var(--radius-lg);
-            padding: 40px;
-            text-align: center;
-            transition: var(--transition);
-            background: #FAFAFA;
-            cursor: pointer;
-            }
-
-            .drop-zone:hover,
-            .drop-zone.drop-active {
-            border-color: var(--accent-color);
-            background: rgba(0, 113, 227, 0.05);
-            }
-
-            /* Loader */
-            .loader {
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(0, 113, 227, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--accent-color);
-            animation: spin 0.8s linear infinite;
-            display: inline-block;
-            }
-
-            @keyframes spin {
-            to {
-            transform: rotate(360deg);
-            }
-            }
-            </style>
-            </head>
-
-            <body class="bg-background text-text font-sans antialiased">
-                <!-- Container Principal -->
-                <div id="app" class="min-h-screen flex flex-col">
-                    <!-- Header -->
-                    <header class="bg-white/80 backdrop-blur-md border-b border-border sticky top-0 z-30">
-                        <div class="container mx-auto px-4 py-4">
-                            <div class="flex items-center justify-between">
-                                <!-- Logo -->
-                                <div class="flex items-center space-x-3">
-                                    <svg class="h-8 w-auto" viewBox="0 0 200 50" fill="#1D1D1F"
-                                        xmlns="http://www.w3.org/2000/svg">
-                                        <text x="5" y="35" font-family="-apple-system, sans-serif" font-size="30"
-                                            font-weight="700">EGS</text>
-                                        <text x="70" y="35" font-family="-apple-system, sans-serif" font-size="30"
-                                            font-weight="300">energia</text>
-                                    </svg>
-                                </div>
-
-                                <!-- Navegação -->
-                                <nav id="main-nav" class="hidden md:flex space-x-2 bg-gray-100/50 p-1 rounded-full">
-                                    <a href="#/processador" class="nav-link" data-route="/processador">
-                                        Processador
-                                    </a>
-                                    <a href="#/gerador" class="nav-link" data-route="/gerador">
-                                        Gerador
-                                    </a>
-                                    <a href="#/corretor" class="nav-link" data-route="/corretor">
-                                        Corretor
-                                    </a>
-                                </nav>
-
-                                <!-- Menu Mobile -->
-                                <button id="mobile-menu-btn" class="md:hidden text-text p-2">
-                                    <i class="fas fa-bars text-xl"></i>
-                                </button>
-                            </div>
-
-                            <!-- Menu Mobile Expandido -->
-                            <nav id="mobile-nav" class="hidden md:hidden mt-4 space-y-2 pb-4">
-                                <a href="#/processador" class="block nav-link" data-route="/processador">Processador</a>
-                                <a href="#/gerador" class="block nav-link" data-route="/gerador">Gerador</a>
-                                <a href="#/corretor" class="block nav-link" data-route="/corretor">Corretor</a>
-                            </nav>
-                        </div>
-                    </header>
-
-                    <!-- Conteúdo Principal -->
-                    <main id="main-content" class="flex-grow container mx-auto px-4 py-8">
-                        <!-- O conteúdo será carregado dinamicamente aqui -->
-                    </main>
-
-                    <!-- Footer -->
-                    <footer class="bg-white border-t border-border mt-auto">
-                        <div class="container mx-auto px-4 py-8">
-                            <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-                                <div class="text-sm text-text-muted">
-                                    © 2025 EGS Energia. Todos os direitos reservados.
-                                </div>
-                                <div class="flex items-center space-x-6 text-sm">
-                                    <a href="mailto:atendimento@egsenergia.com.br"
-                                        class="flex items-center text-text-muted hover:text-primary transition-colors">
-                                        <i class="fas fa-envelope mr-2"></i>
-                                        atendimento@egsenergia.com.br
-                                    </a>
-                                    <a href="https://wa.me/5511996703826" target="_blank"
-                                        class="flex items-center text-text-muted hover:text-success transition-colors">
-                                        <i class="fab fa-whatsapp mr-2"></i>
-                                        (11) 99670-3826
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </footer>
-                </div>
-
-                <!-- Loading Overlay -->
-                <div id="loading-overlay"
-                    class="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-50">
-                    <div class="loader"></div>
-                    <p id="loading-status" class="mt-4 text-gray-700 font-medium">Carregando ambiente...</p>
-                </div>
-
-                <!-- Progress Overlay -->
-                <div id="progress-overlay"
-                    class="fixed inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-40 hidden">
-                    <div class="w-64 bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
-                        <div id="progress-bar" class="bg-primary h-full rounded-full transition-all duration-300"
-                            style="width: 0%">
-                        </div>
-                    </div>
-                    <p id="progress-status" class="text-gray-700 font-medium"></p>
-                    <p id="progress-detail" class="text-gray-500 text-sm mt-2"></p>
-                </div>
-
-                <!-- Notification Container -->
-                <div id="notification-container" class="fixed top-4 right-4 z-50 space-y-3 pointer-events-none"></div>
-
-                <!-- Template PDF (oculto) -->
-                <div id="pdf-container" style="position:fixed; left:-9999px; top:0; width:210mm; z-index:-1;">
-                    <div id="pdf-page"
-                        style="width:210mm;height:297mm;background:#fff;color:#0B1220;padding:18mm 14mm;display:flex;flex-direction:column;font-family:'Poppins',sans-serif; font-size:10.5px; line-height:1.25; box-sizing:border-box; overflow:hidden; margin:0 auto;">
-
-                        <!-- Cabeçalho -->
-                        <header class="flex justify-between items-start" style="margin-bottom:6mm;">
-                            <div style="display:flex; flex-direction:column; gap:4mm; max-width:120mm;">
-                                <div style="font-weight:700; font-size:34px; letter-spacing:0.5px; text-align:left;">EGS
-                                    ENERGIA</div>
-                                <div id="pdf-titulo-p1" style="font-weight:600; font-size:13px; text-align:left;">
-                                    Sua contribuição de [Mês] chegou
-                                </div>
-                            </div>
-
-                            <div class="text-right" style="font-size:10px; max-width:72mm;">
-                                <p id="pdf-nome-cliente-p1" class="font-bold" style="font-size:12px;">[Nome Cliente]</p>
-                                <p id="pdf-cpf-p1" class="text-gray-600">[CPF/CNPJ]</p>
-                                <p id="pdf-endereco-p1" class="text-gray-600">[Endereço]</p>
-                                <p class="mt-1">Código Instalação: <span id="pdf-instalacao-p1"
-                                        class="font-bold">[Instalação]</span></p>
-                                <p>Número da conta: <span id="pdf-numconta-p1" class="font-bold">[Num Conta]</span></p>
-                                <p>Emissão: <span id="pdf-emissao-p1" class="font-bold">[Emissão]</span></p>
-                            </div>
-                        </header>
-
-                        <!-- Faixa superior -->
-                        <section
-                            style="display:grid; grid-template-columns: 1.2fr 1fr; gap:8mm; align-items:start; margin-bottom:6mm;">
-                            <div class="p-6 rounded-xl" style="background:#12123B; color:#fff;">
-                                <p style="font-size:12px;">Total a pagar</p>
-                                <p id="pdf-total-pagar" class="font-bold" style="font-size:34px; margin:6px 0 8px;">R$
-                                    0,00</p>
-                                <p style="font-size:10px;">Data de vencimento</p>
-                                <p id="pdf-vencimento-p1" style="font-size:12px; font-weight:600;">[Data]</p>
-                            </div>
-
-                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5mm;">
-                                <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-                                    <p id="pdf-economia-mes" class="font-bold" style="font-size:16px;">R$ 0,00</p>
-                                    <p style="opacity:.9;">Economia Mês</p>
-                                </div>
-                                <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-                                    <p id="pdf-economia-acumulada" class="font-bold" style="font-size:16px;">R$ 0,00</p>
-                                    <p style="opacity:.9;">Economia acumulada</p>
-                                </div>
-                                <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-                                    <p id="pdf-arvores" class="font-bold" style="font-size:16px;">0,00</p>
-                                    <p style="opacity:.9;">Árvores preservadas</p>
-                                </div>
-                                <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-                                    <p id="pdf-co2" class="font-bold" style="font-size:16px;">0,00 kg</p>
-                                    <p style="opacity:.9;">CO2 poupados</p>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- Resumo de Economia -->
-                        <section style="margin:6mm 0;">
-                            <div class="rounded-lg" style="background:#F3F4F6; padding:10px 12px;">
-                                <div
-                                    style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                                    <div style="font-weight:700; font-size:12px;">Resumo da sua economia</div>
-                                    <div style="text-align:right;">
-                                        <div style="font-size:18px; font-weight:800; color:#16A34A;">
-                                            <span id="pdf-econ-mes-valor">R$ 0,00</span>
-                                        </div>
-                                        <div style="font-size:10px; color:#374151; margin-top:2px;">
-                                            Sem GD: <span id="pdf-econ-sem-gd">R$ 0,00</span> &nbsp; • &nbsp;
-                                            Com GD: <span id="pdf-econ-com-gd">R$ 0,00</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- Tabelas -->
-                        <section
-                            style="display:grid; grid-template-columns: 1fr 1fr; gap:8mm; margin-bottom:6mm; font-size:10px;">
-                            <!-- Contribuição EGS -->
-                            <div>
-                                <h2 class="font-bold" style="font-size:11px; margin-bottom:2mm;">Como calculamos sua
-                                    contribuição</h2>
-                                <table class="w-full" style="width:100%; border-collapse:collapse;">
-                                    <thead>
-                                        <tr style="border-bottom:1px solid #D1D5DB;">
-                                            <th class="text-left" style="padding:6px 4px;">Descrição</th>
-                                            <th class="text-right" style="padding:6px 4px;">Quantidade</th>
-                                            <th class="text-right" style="padding:6px 4px;">Tarifa</th>
-                                            <th class="text-right" style="padding:6px 4px;">Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style="border-bottom:1px solid #E5E7EB;">
-                                            <td style="padding:5px 4px;">Crédito de Energia</td>
-                                            <td id="pdf-det-credito-qtd" class="text-right" style="padding:5px 4px;">
-                                            </td>
-                                            <td id="pdf-det-credito-tar" class="text-right" style="padding:5px 4px;">
-                                            </td>
-                                            <td id="pdf-det-credito-total" class="text-right"
-                                                style="padding:5px 4px; font-weight:600;"></td>
-                                        </tr>
-                                        <tr style="border-bottom:1px solid #E5E7EB;">
-                                            <td style="padding:5px 4px;">Desconto extra</td>
-                                            <td class="text-right" style="padding:5px 4px;">0,00</td>
-                                            <td class="text-right" style="padding:5px 4px;">R$ 0,00</td>
-                                            <td class="text-right" style="padding:5px 4px; font-weight:600;">R$ 0,00
-                                            </td>
-                                        </tr>
-                                        <tr style="border-bottom:1px solid #E5E7EB;">
-                                            <td style="padding:5px 4px;">Ajuste retroativo</td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td class="text-right" style="padding:5px 4px; font-weight:600;">R$ 0,00
-                                            </td>
-                                        </tr>
-                                        <tr style="background:#F3F4F6;">
-                                            <td style="padding:5px 4px; font-weight:700;">Total da sua contribuição</td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td id="pdf-det-total-contrib" class="text-right"
-                                                style="padding:5px 4px; font-weight:700;"></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <!-- Distribuidora -->
-                            <div>
-                                <h2 class="font-bold" style="font-size:11px; margin-bottom:2mm;">Como ficou sua conta da
-                                    distribuidora</h2>
-                                <table class="w-full" style="width:100%; border-collapse:collapse;">
-                                    <thead>
-                                        <tr style="border-bottom:1px solid #D1D5DB;">
-                                            <th class="text-left" style="padding:6px 4px;">Descrição</th>
-                                            <th class="text-right" style="padding:6px 4px;">Quantidade</th>
-                                            <th class="text-right" style="padding:6px 4px;">Tarifa</th>
-                                            <th class="text-right" style="padding:6px 4px;">Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style="border-bottom:1px solid #E5E7EB;">
-                                            <td style="padding:5px 4px;">Energia Consumida</td>
-                                            <td id="pdf-dist-consumo-qtd" class="text-right" style="padding:5px 4px;">
-                                            </td>
-                                            <td id="pdf-dist-consumo-tar" class="text-right" style="padding:5px 4px;">
-                                            </td>
-                                            <td id="pdf-dist-consumo-total" class="text-right" style="padding:5px 4px;">
-                                            </td>
-                                        </tr>
-                                        <tr style="border-bottom:1px solid #E5E7EB;">
-                                            <td style="padding:5px 4px;">Energia Compensada</td>
-                                            <td id="pdf-dist-comp-qtd" class="text-right" style="padding:5px 4px;"></td>
-                                            <td id="pdf-dist-comp-tar" class="text-right" style="padding:5px 4px;"></td>
-                                            <td id="pdf-dist-comp-total" class="text-right" style="padding:5px 4px;">
-                                            </td>
-                                        </tr>
-                                        <tr style="border-bottom:1px solid #E5E7EB;">
-                                            <td style="padding:5px 4px;">Contrib. Ilum. Pública e Outros</td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td id="pdf-dist-outros" class="text-right" style="padding:5px 4px;"></td>
-                                        </tr>
-                                        <tr style="background:#F3F4F6;">
-                                            <td style="padding:5px 4px; font-weight:700;">Total a pagar distribuidora
-                                            </td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td class="text-right" style="padding:5px 4px;"></td>
-                                            <td id="pdf-dist-total" class="text-right"
-                                                style="padding:5px 4px; font-weight:700;"></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        <!-- Comparativos -->
-                        <section style="margin-bottom:6mm;">
-                            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5mm; margin-bottom:5mm;">
-                                <div class="rounded-lg"
-                                    style="background:#F3F4F6; padding:8px 10px; display:flex; justify-content:space-between;">
-                                    <div class="font-bold">Se fosse só distribuidora</div>
-                                    <div class="text-right">
-                                        <span id="pdf-econ-total-sem" class="font-bold" style="font-size:12px;">R$
-                                            0,00</span><br>
-                                        <span class="text-gray-600">(Tarifa <span id="pdf-econ-tarifa-dist"></span> x
-                                            Qtd. <span id="pdf-econ-qtd-dist"></span>) + Outros <span
-                                                id="pdf-econ-outros"></span></span>
-                                    </div>
-                                </div>
-
-                                <div class="rounded-lg"
-                                    style="background:#F3F4F6; padding:8px 10px; display:flex; justify-content:space-between;">
-                                    <div class="font-bold">Com EGS</div>
-                                    <div class="text-right">
-                                        <span id="pdf-econ-total-com" class="font-bold" style="font-size:12px;">R$
-                                            0,00</span><br>
-                                        <span id="pdf-econ-exp-ev" class="text-gray-600"></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="rounded-lg text-center" style="background:#12123B; color:#fff; padding:10px;">
-                                <p class="font-bold" style="font-size:12px;">Sua economia neste mês</p>
-                                <p id="pdf-econ-economia-final" class="font-bold" style="font-size:18px;">R$ 0,00</p>
-                            </div>
-                        </section>
-
-                        <!-- Rodapé -->
-                        <footer style="margin-top:auto; font-size:9.5px; color:#6B7280;">
-                            <div class="p-2 rounded-lg font-bold text-white text-center"
-                                style="background:#12123B; margin-bottom:6px;">
-                                Atenção! Você ainda precisa pagar a conta da distribuidora.
-                            </div>
-                            <div class="text-center font-bold"
-                                style="color:#DC2626; margin-bottom:6mm; font-size:10px;">
-                                Boletos são expirados após 10 dias corridos do vencimento.
-                            </div>
-
-                            <div style="margin-bottom:6mm;">
-                                <table style="width:100%; border-collapse:collapse;">
-                                    <thead>
-                                        <tr style="border-bottom:1px solid #D1D5DB;">
-                                            <th class="text-left" style="padding:6px 4px;">Referência</th>
-                                            <th class="text-left" style="padding:6px 4px;">Valor</th>
-                                            <th class="text-left" style="padding:6px 4px;">Vencimento</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td id="pdf-ref-foot" style="padding:5px 4px;">[Ref]</td>
-                                            <td id="pdf-valor-foot" style="padding:5px 4px;">[Valor]</td>
-                                            <td id="pdf-venc-foot" style="padding:5px 4px;">[Venc]</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div class="rounded-lg"
-                                style="background:#F3F4F6; padding:8px 10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-                                <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
-                                    <i class="fa-solid fa-envelope" style="font-size:12px; color:#12123B;"></i>
-                                    <span><strong>E-mail:</strong> atendimento@egsenergia.com.br</span>
-                                </div>
-                                <div style="width:1px; height:14px; background:#D1D5DB;"></div>
-                                <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
-                                    <i class="fa-brands fa-whatsapp" style="font-size:12px; color:#16A34A;"></i>
-                                    <span><strong>WhatsApp:</strong> (11) 99670-3826</span>
-                                </div>
-                            </div>
-                        </footer>
-
+            <!-- Cabeçalho -->
+            <header class="flex justify-between items-start" style="margin-bottom:6mm;">
+                <div style="display:flex; flex-direction:column; gap:4mm; max-width:120mm;">
+                    <div style="font-weight:700; font-size:34px; letter-spacing:0.5px; text-align:left;">EGS
+                        ENERGIA</div>
+                    <div id="pdf-titulo-p1" style="font-weight:600; font-size:13px; text-align:left;">
+                        Sua contribuição de [Mês] chegou
                     </div>
                 </div>
 
+                <div class="text-right" style="font-size:10px; max-width:72mm;">
+                    <p id="pdf-nome-cliente-p1" class="font-bold" style="font-size:12px;">[Nome Cliente]</p>
+                    <p id="pdf-cpf-p1" class="text-gray-600">[CPF/CNPJ]</p>
+                    <p id="pdf-endereco-p1" class="text-gray-600">[Endereço]</p>
+                    <p class="mt-1">Código Instalação: <span id="pdf-instalacao-p1"
+                            class="font-bold">[Instalação]</span></p>
+                    <p>Número da conta: <span id="pdf-numconta-p1" class="font-bold">[Num Conta]</span></p>
+                    <p>Emissão: <span id="pdf-emissao-p1" class="font-bold">[Emissão]</span></p>
+                </div>
+            </header>
 
-                <!-- Scripts -->
-                <script type="module" src="/src/main.js"></script>
-    </body>
+            <!-- Faixa superior -->
+            <section
+                style="display:grid; grid-template-columns: 1.2fr 1fr; gap:8mm; align-items:start; margin-bottom:6mm;">
+                <div class="p-6 rounded-xl" style="background:#12123B; color:#fff;">
+                    <p style="font-size:12px;">Total a pagar</p>
+                    <p id="pdf-total-pagar" class="font-bold" style="font-size:34px; margin:6px 0 8px;">R$
+                        0,00</p>
+                    <p style="font-size:10px;">Data de vencimento</p>
+                    <p id="pdf-vencimento-p1" style="font-size:12px; font-weight:600;">[Data]</p>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5mm;">
+                    <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
+                        <p id="pdf-economia-mes" class="font-bold" style="font-size:16px;">R$ 0,00</p>
+                        <p style="opacity:.9;">Economia Mês</p>
+                    </div>
+                    <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
+                        <p id="pdf-economia-acumulada" class="font-bold" style="font-size:16px;">R$ 0,00</p>
+                        <p style="opacity:.9;">Economia acumulada</p>
+                    </div>
+                    <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
+                        <p id="pdf-arvores" class="font-bold" style="font-size:16px;">0,00</p>
+                        <p style="opacity:.9;">Árvores preservadas</p>
+                    </div>
+                    <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
+                        <p id="pdf-co2" class="font-bold" style="font-size:16px;">0,00 kg</p>
+                        <p style="opacity:.9;">CO2 poupados</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Resumo de Economia -->
+            <section style="margin:6mm 0;">
+                <div class="rounded-lg" style="background:#F3F4F6; padding:10px 12px;">
+                    <div
+                        style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size:12px;">Resumo da sua economia</div>
+                        <div style="text-align:right;">
+                            <div style="font-size:18px; font-weight:800; color:#16A34A;">
+                                <span id="pdf-econ-mes-valor">R$ 0,00</span>
+                            </div>
+                            <div style="font-size:10px; color:#374151; margin-top:2px;">
+                                Sem GD: <span id="pdf-econ-sem-gd">R$ 0,00</span> &nbsp; • &nbsp;
+                                Com GD: <span id="pdf-econ-com-gd">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tabelas -->
+            <section style="display:grid; grid-template-columns: 1fr 1fr; gap:8mm; margin-bottom:6mm; font-size:10px;">
+                <!-- Contribuição EGS -->
+                <div>
+                    <h2 class="font-bold" style="font-size:11px; margin-bottom:2mm;">Como calculamos sua
+                        contribuição</h2>
+                    <table class="w-full" style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #D1D5DB;">
+                                <th class="text-left" style="padding:6px 4px;">Descrição</th>
+                                <th class="text-right" style="padding:6px 4px;">Quantidade</th>
+                                <th class="text-right" style="padding:6px 4px;">Tarifa</th>
+                                <th class="text-right" style="padding:6px 4px;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom:1px solid #E5E7EB;">
+                                <td style="padding:5px 4px;">Crédito de Energia</td>
+                                <td id="pdf-det-credito-qtd" class="text-right" style="padding:5px 4px;">
+                                </td>
+                                <td id="pdf-det-credito-tar" class="text-right" style="padding:5px 4px;">
+                                </td>
+                                <td id="pdf-det-credito-total" class="text-right"
+                                    style="padding:5px 4px; font-weight:600;"></td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #E5E7EB;">
+                                <td style="padding:5px 4px;">Desconto extra</td>
+                                <td class="text-right" style="padding:5px 4px;">0,00</td>
+                                <td class="text-right" style="padding:5px 4px;">R$ 0,00</td>
+                                <td class="text-right" style="padding:5px 4px; font-weight:600;">R$ 0,00
+                                </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #E5E7EB;">
+                                <td style="padding:5px 4px;">Ajuste retroativo</td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td class="text-right" style="padding:5px 4px; font-weight:600;">R$ 0,00
+                                </td>
+                            </tr>
+                            <tr style="background:#F3F4F6;">
+                                <td style="padding:5px 4px; font-weight:700;">Total da sua contribuição</td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td id="pdf-det-total-contrib" class="text-right"
+                                    style="padding:5px 4px; font-weight:700;"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Distribuidora -->
+                <div>
+                    <h2 class="font-bold" style="font-size:11px; margin-bottom:2mm;">Como ficou sua conta da
+                        distribuidora</h2>
+                    <table class="w-full" style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #D1D5DB;">
+                                <th class="text-left" style="padding:6px 4px;">Descrição</th>
+                                <th class="text-right" style="padding:6px 4px;">Quantidade</th>
+                                <th class="text-right" style="padding:6px 4px;">Tarifa</th>
+                                <th class="text-right" style="padding:6px 4px;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom:1px solid #E5E7EB;">
+                                <td style="padding:5px 4px;">Energia Consumida</td>
+                                <td id="pdf-dist-consumo-qtd" class="text-right" style="padding:5px 4px;">
+                                </td>
+                                <td id="pdf-dist-consumo-tar" class="text-right" style="padding:5px 4px;">
+                                </td>
+                                <td id="pdf-dist-consumo-total" class="text-right" style="padding:5px 4px;">
+                                </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #E5E7EB;">
+                                <td style="padding:5px 4px;">Energia Compensada</td>
+                                <td id="pdf-dist-comp-qtd" class="text-right" style="padding:5px 4px;"></td>
+                                <td id="pdf-dist-comp-tar" class="text-right" style="padding:5px 4px;"></td>
+                                <td id="pdf-dist-comp-total" class="text-right" style="padding:5px 4px;">
+                                </td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #E5E7EB;">
+                                <td style="padding:5px 4px;">Contrib. Ilum. Pública e Outros</td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td id="pdf-dist-outros" class="text-right" style="padding:5px 4px;"></td>
+                            </tr>
+                            <tr style="background:#F3F4F6;">
+                                <td style="padding:5px 4px; font-weight:700;">Total a pagar distribuidora
+                                </td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td class="text-right" style="padding:5px 4px;"></td>
+                                <td id="pdf-dist-total" class="text-right" style="padding:5px 4px; font-weight:700;">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Comparativos -->
+            <section style="margin-bottom:6mm;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5mm; margin-bottom:5mm;">
+                    <div class="rounded-lg"
+                        style="background:#F3F4F6; padding:8px 10px; display:flex; justify-content:space-between;">
+                        <div class="font-bold">Se fosse só distribuidora</div>
+                        <div class="text-right">
+                            <span id="pdf-econ-total-sem" class="font-bold" style="font-size:12px;">R$
+                                0,00</span><br>
+                            <span class="text-gray-600">(Tarifa <span id="pdf-econ-tarifa-dist"></span> x
+                                Qtd. <span id="pdf-econ-qtd-dist"></span>) + Outros <span
+                                    id="pdf-econ-outros"></span></span>
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg"
+                        style="background:#F3F4F6; padding:8px 10px; display:flex; justify-content:space-between;">
+                        <div class="font-bold">Com EGS</div>
+                        <div class="text-right">
+                            <span id="pdf-econ-total-com" class="font-bold" style="font-size:12px;">R$
+                                0,00</span><br>
+                            <span id="pdf-econ-exp-ev" class="text-gray-600"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg text-center" style="background:#12123B; color:#fff; padding:10px;">
+                    <p class="font-bold" style="font-size:12px;">Sua economia neste mês</p>
+                    <p id="pdf-econ-economia-final" class="font-bold" style="font-size:18px;">R$ 0,00</p>
+                </div>
+            </section>
+
+            <!-- Rodapé -->
+            <footer style="margin-top:auto; font-size:9.5px; color:#6B7280;">
+                <div class="p-2 rounded-lg font-bold text-white text-center"
+                    style="background:#12123B; margin-bottom:6px;">
+                    Atenção! Você ainda precisa pagar a conta da distribuidora.
+                </div>
+                <div class="text-center font-bold" style="color:#DC2626; margin-bottom:6mm; font-size:10px;">
+                    Boletos são expirados após 10 dias corridos do vencimento.
+                </div>
+
+                <div style="margin-bottom:6mm;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #D1D5DB;">
+                                <th class="text-left" style="padding:6px 4px;">Referência</th>
+                                <th class="text-left" style="padding:6px 4px;">Valor</th>
+                                <th class="text-left" style="padding:6px 4px;">Vencimento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td id="pdf-ref-foot" style="padding:5px 4px;">[Ref]</td>
+                                <td id="pdf-valor-foot" style="padding:5px 4px;">[Valor]</td>
+                                <td id="pdf-venc-foot" style="padding:5px 4px;">[Venc]</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="rounded-lg"
+                    style="background:#F3F4F6; padding:8px 10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
+                        <i class="fa-solid fa-envelope" style="font-size:12px; color:#12123B;"></i>
+                        <span><strong>E-mail:</strong> atendimento@egsenergia.com.br</span>
+                    </div>
+                    <div style="width:1px; height:14px; background:#D1D5DB;"></div>
+                    <div style="display:flex; align-items:center; gap:6px; font-size:10.5px;">
+                        <i class="fa-brands fa-whatsapp" style="font-size:12px; color:#16A34A;"></i>
+                        <span><strong>WhatsApp:</strong> (11) 99670-3826</span>
+                    </div>
+                </div>
+            </footer>
+
+        </div>
+    </div>
+
+
+    <!-- Scripts -->
+    <script type="module" src="/src/main.js"></script>
+</body>
 
 </html>
-```

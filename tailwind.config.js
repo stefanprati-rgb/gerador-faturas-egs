@@ -4,27 +4,28 @@ export default {
         "./index.html",
         "./src/**/*.{js,ts,jsx,tsx}",
     ],
+    darkMode: 'class',
     theme: {
         extend: {
             colors: {
                 primary: {
-                    DEFAULT: '#191948',
-                    dark: '#12123B',
+                    DEFAULT: '#0071E3',
+                    dark: '#0077ED',
                 },
-                secondary: '#4CAF50',
-                background: '#F7F8FA',
+                secondary: '#86868B',
+                success: '#34C759',
+                warning: '#FF9F0A',
+                danger: '#FF3B30',
+                background: '#F5F5F7',
                 card: '#FFFFFF',
-                border: '#E7EBF0',
                 text: {
-                    DEFAULT: '#0B1220',
-                    muted: '#6B7280',
+                    DEFAULT: '#1D1D1F',
+                    muted: '#86868B',
                 },
-                error: '#EF4444',
-                success: '#10B981',
-                warning: '#F59E0B',
+                border: '#D2D2D7'
             },
             fontFamily: {
-                sans: ['Poppins', 'sans-serif'],
+                sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
             },
         },
     },

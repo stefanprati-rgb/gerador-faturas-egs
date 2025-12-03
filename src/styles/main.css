@@ -3,57 +3,132 @@
 @tailwind utilities;
 
 /* Estilos customizados */
+@layer base {
+  :root {
+    --accent-color: #0071E3;
+    --accent-hover: #0077ED;
+    --text-primary: #1D1D1F;
+    --text-secondary: #86868B;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --transition: all 0.2s ease;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .dark {
+    --accent-color: #0A84FF;
+    --accent-hover: #0077ED;
+    --text-primary: #F5F5F7;
+    --text-secondary: #86868B;
+    /* Add more dark mode variables as needed */
+  }
+}
+
 @layer components {
-  .nav-link {
-    @apply px-4 py-2 rounded-lg font-medium transition-colors;
-    @apply hover:bg-primary/10 hover:text-primary;
-  }
-  
-  .nav-link.active {
-    @apply bg-primary text-white;
-  }
-  
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold transition-all;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    border-radius: 999px;
+    /* Pill shape */
+    font-weight: 500;
+    font-size: 14px;
+    transition: var(--transition);
+    cursor: pointer;
+    border: none;
+    outline: none;
+    @apply inline-flex items-center justify-center px-4 py-2;
   }
-  
+
   .btn-primary {
-    @apply bg-primary text-white hover:bg-primary-dark;
+    background: var(--accent-color);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
   }
-  
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    box-shadow: 0 6px 16px rgba(0, 113, 227, 0.4);
+    transform: scale(1.02);
+  }
+
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
   }
-  
-  .card {
-    @apply bg-card border border-border rounded-2xl shadow-sm p-6;
+
+  .btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.08);
   }
-  
+
   .input {
-    @apply w-full rounded-lg border border-border px-4 py-2.5;
-    @apply focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid #D2D2D7;
+    background: rgba(255, 255, 255, 0.8);
+    font-size: 15px;
+    color: var(--text-primary);
+    transition: var(--transition);
   }
-  
+
+  .input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
+    outline: none;
+    background: #fff;
+  }
+
+  .nav-link {
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .nav-link:hover {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .nav-link.active {
+    color: var(--text-primary);
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+    font-weight: 600;
+  }
+
+  .drop-zone {
+    border: 2px dashed #D2D2D7;
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    text-align: center;
+    transition: var(--transition);
+    background: #FAFAFA;
+    cursor: pointer;
+  }
+
+  .drop-zone:hover,
+  .drop-zone.drop-active {
+    border-color: var(--accent-color);
+    background: rgba(0, 113, 227, 0.05);
+  }
+
   .loader {
-    @apply border-4 border-gray-200 border-t-primary rounded-full w-6 h-6 animate-spin;
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(0, 113, 227, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--accent-color);
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
   }
 }
 
-/* Animações customizadas */
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
+@keyframes spin {
   to {
-    opacity: 1;
-    transform: translateY(0);
+    transform: rotate(360deg);
   }
-}
-
-.slide-in {
-  animation: slideIn 0.3s ease-out;
 }
 
 /* Scrollbar customizada */
@@ -74,14 +149,4 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a0aec0;
-}
-
-/* Drag and drop zone */
-.drop-zone {
-  @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer;
-  @apply transition-colors hover:border-primary hover:bg-primary/5;
-}
-
-.drop-zone.drop-active {
-  @apply border-primary bg-primary/10;
 }

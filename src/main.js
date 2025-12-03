@@ -1,3 +1,4 @@
+import './styles/main.css';
 import router from './router.js';
 
 import { renderGerador, initGerador } from './modules/gerador/index.js';
