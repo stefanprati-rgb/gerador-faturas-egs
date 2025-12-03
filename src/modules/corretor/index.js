@@ -4,7 +4,7 @@
  */
 
 import stateManager from '../../core/StateManager.js';
-import fileStatus from '../../components/FileStatus.js';
+import { FileStatus } from '../../components/FileStatus.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
 import { formatCurrency, formatNumber, normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
@@ -169,7 +169,7 @@ export async function renderCorretor() {
  */
 export function initCorretor() {
   // Inicializa componente de status global
-  new fileStatus.constructor('corretor-file-status');
+  new FileStatus('corretor-file-status');
 
   const searchInput = document.getElementById('search-client-corretor');
   const exportBtn = document.getElementById('export-json-corretor');

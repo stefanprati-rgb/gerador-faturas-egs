@@ -4,7 +4,7 @@
 
 import excelProcessor from '../../core/excelProcessor.js';
 import stateManager from '../../core/StateManager.js';
-import fileStatus from '../../components/FileStatus.js';
+import { FileStatus } from '../../components/FileStatus.js';
 import { validateFile } from '../../core/validators.js';
 import { formatCurrency } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
@@ -132,7 +132,7 @@ export async function renderProcessador() {
  */
 export function initProcessador() {
   // Inicializa componente de status global
-  new fileStatus.constructor('processador-file-status');
+  new FileStatus('processador-file-status');
 
   const fileUpload = document.getElementById('file-upload-processador');
   const dropZone = document.getElementById('drop-zone-processador');
@@ -158,7 +158,7 @@ export function initProcessador() {
     }
 
     if (stateManager.hasFile()) {
-      fileStatus.constructor.requestFileChange(() => {
+      FileStatus.requestFileChange(() => {
         stateManager.setFile(file);
       });
     } else {

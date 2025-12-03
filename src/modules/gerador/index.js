@@ -3,7 +3,7 @@
  */
 
 import stateManager from '../../core/StateManager.js';
-import fileStatus from '../../components/FileStatus.js';
+import { FileStatus } from '../../components/FileStatus.js';
 import excelProcessor from '../../core/excelProcessor.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
 import { formatCurrency, normalizeString } from '../../core/formatters.js';
@@ -100,7 +100,7 @@ export async function renderGerador() {
  */
 export function initGerador() {
   // Inicializa componente de status global
-  new fileStatus.constructor('gerador-file-status');
+  new FileStatus('gerador-file-status');
 
   const fileUpload = document.getElementById('file-upload-gerador');
   const dropZone = document.getElementById('drop-zone-gerador');
@@ -125,7 +125,7 @@ export function initGerador() {
     }
 
     if (stateManager.hasFile()) {
-      fileStatus.constructor.requestFileChange(() => {
+      FileStatus.requestFileChange(() => {
         stateManager.setFile(file);
       });
     } else {
