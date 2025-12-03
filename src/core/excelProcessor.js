@@ -46,9 +46,24 @@ class ExcelProcessor {
             if (statusCallback) statusCallback('Carregando script de processamento...');
 
             // Carregar script Python
-            // Usando importação raw do Vite para evitar problemas de fetch/caminho
-            const pythonCode = (await import('../python/processor.py?raw')).default;
-            this.pyodide.runPython(pythonCode);
+            try {
+                // Tentar importação do Vite primeiro
+                const pythonModule = await import('../python/processor.py?raw');
+                const pythonCode = pythonModule.default;
+                this.pyodide.runPython(pythonCode);
+            } catch (error) {
+                console.error('Erro ao carregar script Python via import:', error);
+
+                // Fallback: tentar fetch direto
+                try {
+                    const response = await fetch('/src/python/processor.py');
+                    const pythonCode = await response.text();
+                    this.pyodide.runPython(pythonCode);
+                } catch (fetchError) {
+                    console.error('Erro ao carregar script Python via fetch:', fetchError);
+                    throw new Error('Não foi possível carregar o processador Python');
+                }
+            }
 
             this.isLoaded = true;
             this.isLoading = false;

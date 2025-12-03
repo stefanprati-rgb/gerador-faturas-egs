@@ -138,7 +138,7 @@ class PDFGenerator {
         // Resumo de economia
         const semGD = Number(client.econ_total_sem || 0);
         const comGD = Number(client.econ_total_com || 0);
-        const econ = Number(client.economiaMes ?? (semGD - comGD));
+        const econ = Number(client.economiaMes || 0);
 
         document.getElementById('pdf-econ-mes-valor').textContent = formatCurrency(econ);
         document.getElementById('pdf-econ-sem-gd').textContent = formatCurrency(semGD);
