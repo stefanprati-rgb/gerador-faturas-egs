@@ -257,13 +257,15 @@ function updateUI(state) {
     dataVenc.value = state.params.dataVencimento;
   }
 
-  // Gerencia Visibilidade do Upload
+  // Lógica de Visibilidade:
+  // 1. O FileStatus (statusEl) agora fica SEMPRE visível (removemos class hidden)
+  if (fileStatusEl) fileStatusEl.classList.remove('hidden');
+
+  // 2. O Upload Card só some se TIVER arquivo carregado
   if (state.file) {
     uploadCard?.classList.add('hidden');
-    fileStatusEl?.classList.remove('hidden');
   } else {
     uploadCard?.classList.remove('hidden');
-    fileStatusEl?.classList.add('hidden');
   }
 
   // Habilita/Desabilita Botão Processar

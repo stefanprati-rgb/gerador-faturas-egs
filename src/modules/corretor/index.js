@@ -211,11 +211,13 @@ function updateCorretorUI(state) {
   const placeholderEl = document.getElementById('edit-panel-placeholder');
   const countBadge = document.getElementById('client-count-badge');
 
+  // Status sempre visível no topo
+  if (statusEl) statusEl.classList.remove('hidden');
+
   if (hasData) {
-    // Mostrar ferramentas e status
+    // Mostrar ferramentas
     noFileEl?.classList.add('hidden');
     toolsEl?.classList.remove('hidden');
-    statusEl?.classList.remove('hidden');
     placeholderEl?.classList.remove('hidden');
 
     // Atualizar contador
@@ -230,7 +232,6 @@ function updateCorretorUI(state) {
     // Mostrar estado vazio
     noFileEl?.classList.remove('hidden');
     toolsEl?.classList.add('hidden');
-    statusEl?.classList.add('hidden');
     placeholderEl?.classList.add('hidden');
 
     if (countBadge) {
@@ -238,10 +239,7 @@ function updateCorretorUI(state) {
     }
 
     const listContainer = document.getElementById('clients-list-corretor');
-    const emptyState = document.getElementById('empty-state-corretor');
-    if (listContainer && emptyState) {
-      listContainer.innerHTML = emptyState.outerHTML;
-    }
+    if (listContainer) listContainer.innerHTML = '';
   }
 }
 

@@ -207,54 +207,48 @@ async function initPyodide() {
  */
 function updateUI(state) {
   const uploadCard = document.getElementById('upload-card-gerador');
-  const fileStatusEl = document.getElementById('gerador-file-status');
+  const statusEl = document.getElementById('gerador-file-status');
   const mesRef = document.getElementById('mes-referencia-gerador');
   const dataVenc = document.getElementById('data-vencimento-gerador');
   const processBtn = document.getElementById('process-btn-gerador');
 
-  // Sincroniza Inputs com estado
-  if (mesRef && state.params.mesReferencia) {
-    mesRef.value = state.params.mesReferencia;
-  }
-  if (dataVenc && state.params.dataVencimento) {
-    dataVenc.value = state.params.dataVencimento;
-  }
+  // Sincroniza Inputs
+  if (mesRef && state.params.mesReferencia) mesRef.value = state.params.mesReferencia;
+  if (dataVenc && state.params.dataVencimento) dataVenc.value = state.params.dataVencimento;
 
-  // Gerencia Visibilidade do Upload
+  // Lógica de Visibilidade atualizada: Status sempre visível
+  if (statusEl) statusEl.classList.remove('hidden');
+
+  // Upload Card some se já tem arquivo
   if (state.file) {
     uploadCard?.classList.add('hidden');
-    fileStatusEl?.classList.remove('hidden');
   } else {
     uploadCard?.classList.remove('hidden');
-    fileStatusEl?.classList.add('hidden');
   }
 
   // Habilita/Desabilita Botão Processar
-  const isReady = state.file && state.params.mesReferencia && state.params.dataVencimento && isPyodideReady;
-
+  const isReady = state.file && state.params.mesReferencia && state.params.dataVencimento;
   if (processBtn) {
     processBtn.disabled = !isReady;
-
-    if (!isPyodideReady && state.file) {
-      processBtn.innerHTML = '<div class="loader !w-4 !h-4 !border-2"></div> Carregando sistema...';
-    } else if (state.processedData.length > 0) {
-      processBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Reprocessar Lista';
-    } else {
-      processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Processar e Listar';
-    }
+    processBtn.innerHTML = state.processedData.length > 0
+      ? '<i class="fas fa-sync-alt mr-2"></i>Reprocessar Lista'
+      : '<i class="fas fa-cogs mr-2"></i>Processar e Listar';
   }
 
-  // Se já tiver dados processados, mostra a lista automaticamente
   if (state.processedData.length > 0) {
-    displayedClients = state.processedData;
     renderClientList(state.processedData);
     document.getElementById('search-container-gerador')?.classList.remove('hidden');
     document.getElementById('download-all-area-gerador')?.classList.remove('hidden');
   } else {
-    const emptyState = document.getElementById('empty-state-gerador');
+    // Reset visual
     const resultList = document.getElementById('result-list-gerador');
-    if (emptyState && resultList) {
-      resultList.innerHTML = emptyState.outerHTML;
+    const emptyState = document.getElementById('empty-state-gerador');
+    if (resultList && emptyState) {
+      if (resultList.children.length > 1 || (resultList.children.length === 1 && resultList.children[0].id !== 'empty-state-gerador')) {
+        resultList.innerHTML = '';
+        resultList.appendChild(emptyState);
+      }
+      emptyState.classList.remove('hidden');
     }
     document.getElementById('search-container-gerador')?.classList.add('hidden');
     document.getElementById('download-all-area-gerador')?.classList.add('hidden');
