@@ -72,7 +72,7 @@ export async function renderCorretor() {
 
     <!-- Modal de Edição -->
     <div id="edit-modal-corretor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
-      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div class="p-6 border-b border-gray-200">
           <div class="flex items-center justify-between">
             <h3 class="text-2xl font-bold">Editar Fatura</h3>
@@ -83,45 +83,63 @@ export async function renderCorretor() {
           <p id="modal-client-name" class="text-text-muted mt-1"></p>
         </div>
 
-        <div class="p-6 space-y-6">
-          <!-- Campos Editáveis -->
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-1">Quantidade de Crédito</label>
-              <input type="number" id="edit-credito-qtd" class="input" step="0.01">
+        <div class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Coluna Esquerda: Inputs -->
+            <div class="space-y-4 p-4 border border-gray-200 rounded-lg">
+              <h4 class="font-semibold text-gray-700 border-b pb-2">Valores Editáveis</h4>
+              
+              <div>
+                <label class="block text-sm font-medium mb-1">Crédito Consumido (kWh)</label>
+                <input type="number" id="edit-comp_qtd" class="input" step="0.01">
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium mb-1">Tarifa de Referência EGS (R$)</label>
+                <input type="number" id="edit-tarifa_comp_ev" class="input" step="0.000001">
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium mb-1">Boleto Fixo (R$)</label>
+                <input type="number" id="edit-boleto_ev" class="input" step="0.01">
+                <p class="text-xs text-gray-500 mt-1">Deixe 0 para usar a tarifa × quantidade</p>
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium mb-1">Outros Custos Distribuidora (R$)</label>
+                <input type="number" id="edit-dist_outros" class="input" step="0.01">
+              </div>
             </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Tarifa de Referência</label>
-              <input type="number" id="edit-credito-tar" class="input" step="0.000001">
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Desconto Extra</label>
-              <input type="number" id="edit-desconto" class="input" step="0.01" value="0">
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Ajuste Retroativo</label>
-              <input type="number" id="edit-ajuste" class="input" step="0.01" value="0">
-            </div>
-          </div>
 
-          <!-- Prévia de Cálculos -->
-          <div class="bg-gray-50 rounded-lg p-4 space-y-2">
-            <h4 class="font-semibold mb-3">Prévia de Valores</h4>
-            <div class="flex justify-between">
-              <span class="text-text-muted">Crédito Total:</span>
-              <span id="preview-credito" class="font-semibold">R$ 0,00</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-text-muted">Desconto Extra:</span>
-              <span id="preview-desconto" class="font-semibold text-success">R$ 0,00</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-text-muted">Ajuste Retroativo:</span>
-              <span id="preview-ajuste" class="font-semibold">R$ 0,00</span>
-            </div>
-            <div class="border-t border-gray-300 pt-2 mt-2 flex justify-between">
-              <span class="font-bold">Total a Pagar:</span>
-              <span id="preview-total" class="font-bold text-primary text-lg">R$ 0,00</span>
+            <!-- Coluna Direita: Resultados -->
+            <div class="space-y-3 p-4 bg-gray-50 rounded-lg">
+              <h4 class="font-semibold text-gray-700 border-b pb-2">Resultados Recalculados</h4>
+              
+              <div class="text-sm flex justify-between">
+                <strong>Contribuição EGS:</strong>
+                <span id="res-total_contribuicao" class="font-semibold text-primary">R$ 0,00</span>
+              </div>
+              
+              <div class="text-sm flex justify-between">
+                <strong>Fatura Distribuidora:</strong>
+                <span id="res-total_distribuidora" class="font-semibold">R$ 0,00</span>
+              </div>
+              
+              <hr class="my-2">
+              
+              <div class="text-lg font-bold flex justify-between">
+                TOTAL A PAGAR:
+                <span id="res-total_com_gd" class="text-primary">R$ 0,00</span>
+              </div>
+              
+              <div class="text-sm text-gray-600 flex justify-between">
+                Sem GD seria:
+                <span id="res-total_sem_gd">R$ 0,00</span>
+              </div>
+              
+              <div class="text-lg font-bold text-green-600 bg-green-100 p-3 rounded-md text-center">
+                ECONOMIA: <span id="res-economia_mes">R$ 0,00</span>
+              </div>
             </div>
           </div>
         </div>
@@ -137,6 +155,79 @@ export async function renderCorretor() {
       </div>
     </div>
   `;
+}
+
+/**
+ * Recalcula fatura com base nos valores editados
+ */
+function recalculateInvoice(client) {
+  const d = { ...client };
+
+  // Inicializa _editor se não existir
+  if (!d._editor) {
+    const consumo_total_val = d.dist_consumo_qtd * d.dist_consumo_tar;
+    const comp_total_val_dist = d.det_credito_qtd * d.dist_comp_tar;
+    const dist_outros_inicial = Math.max(0, d.dist_total - (consumo_total_val - comp_total_val_dist));
+
+    d._editor = {
+      comp_qtd: d.det_credito_qtd || 0,
+      tarifa_comp_ev: d.det_credito_tar || 0,
+      boleto_ev: 0,
+      dist_outros: parseFloat(dist_outros_inicial.toFixed(2))
+    };
+  }
+
+  const editor = d._editor;
+  const comp_qtd = editor.comp_qtd;
+  const consumo_qtd = d.dist_consumo_qtd;
+  const tarifa_cons = d.dist_consumo_tar;
+  const tarifa_comp_dist = d.dist_comp_tar;
+
+  // Cálculo da contribuição EGS
+  let det_credito_total, det_credito_tar;
+  if (editor.boleto_ev > 0) {
+    det_credito_total = editor.boleto_ev;
+    det_credito_tar = (comp_qtd > 0) ? editor.boleto_ev / comp_qtd : 0;
+  } else {
+    det_credito_total = comp_qtd * editor.tarifa_comp_ev;
+    det_credito_tar = editor.tarifa_comp_ev;
+  }
+
+  // Cálculo da distribuidora
+  const consumo_total_val = consumo_qtd * tarifa_cons;
+  const comp_total_val_dist = comp_qtd * tarifa_comp_dist;
+  const dist_total = consumo_total_val - comp_total_val_dist + editor.dist_outros;
+
+  // Economia
+  const econ_total_com = dist_total + det_credito_total;
+  const econ_total_sem = consumo_total_val + editor.dist_outros;
+  const economiaMes = Math.max(0, econ_total_sem - econ_total_com);
+
+  // Impactos ambientais
+  const co2_kg = comp_qtd * 0.07;
+  const arvores = (co2_kg / 1000.0) * 8;
+
+  return {
+    ...d,
+    totalPagar: det_credito_total,
+    economiaMes: economiaMes,
+    co2Evitado: co2_kg,
+    arvoresEquivalentes: arvores,
+    det_credito_qtd: comp_qtd,
+    det_credito_tar: det_credito_tar,
+    det_credito_total: det_credito_total,
+    dist_consumo_qtd: consumo_qtd,
+    dist_consumo_tar: tarifa_cons,
+    dist_consumo_total: consumo_total_val,
+    dist_comp_qtd: comp_qtd,
+    dist_comp_tar: tarifa_comp_dist,
+    dist_comp_total: -comp_total_val_dist,
+    dist_outros: editor.dist_outros,
+    dist_total: dist_total,
+    econ_total_sem: econ_total_sem,
+    econ_total_com: econ_total_com,
+    economiaTotal: d.economiaTotal || economiaMes
+  };
 }
 
 /**
@@ -184,27 +275,25 @@ export function initCorretor() {
   if (saveEditBtn) saveEditBtn.addEventListener('click', handleSave);
 
   // Atualizar prévia ao editar campos
-  ['edit-credito-qtd', 'edit-credito-tar', 'edit-desconto', 'edit-ajuste'].forEach(id => {
+  ['edit-comp_qtd', 'edit-tarifa_comp_ev', 'edit-boleto_ev', 'edit-dist_outros'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updatePreview);
   });
 
-  // Ouvir evento de dados prontos (vindo do Processador)
+  // Ouvir evento de dados prontos
   window.addEventListener('egs:dataReady', (e) => {
     if (e.detail && Array.isArray(e.detail)) {
       loadFromData(e.detail);
     }
   });
 
-  // Verificar se já existem dados no localStorage ao carregar a aba
+  // Verificar localStorage
   const storedData = localStorage.getItem('egs_data_to_correct');
   if (storedData) {
     try {
       const data = JSON.parse(storedData);
       if (Array.isArray(data) && data.length > 0) {
         loadFromData(data);
-        // Opcional: Limpar localStorage após carregar para não recarregar sempre? 
-        // Melhor manter por enquanto caso o usuário recarregue a página.
       }
     } catch (e) {
       console.error('Erro ao carregar dados do localStorage', e);
@@ -213,10 +302,10 @@ export function initCorretor() {
 }
 
 /**
- * Carrega dados diretamente (sem upload de arquivo)
+ * Carrega dados diretamente
  */
 function loadFromData(data) {
-  clientsData = data;
+  clientsData = data.map(client => recalculateInvoice(client));
   renderClientsList(clientsData);
 
   document.getElementById('empty-state-corretor')?.classList.add('hidden');
@@ -226,11 +315,10 @@ function loadFromData(data) {
   const fileSelectedEl = document.getElementById('file-selected-corretor');
   if (fileSelectedEl) {
     fileSelectedEl.classList.remove('hidden');
-    fileSelectedEl.textContent = `Dados importados do Processador - ${clientsData.length} clientes`;
-    fileSelectedEl.classList.add('text-blue-600');
+    fileSelectedEl.textContent = `Dados importados - ${clientsData.length} clientes`;
   }
 
-  notification.success(`${clientsData.length} clientes carregados do Processador!`);
+  notification.success(`${clientsData.length} clientes carregados!`);
 }
 
 /**
@@ -246,25 +334,19 @@ async function handleFileSelect(file) {
 
   try {
     const text = await file.text();
-    clientsData = JSON.parse(text);
+    const data = JSON.parse(text);
 
-    if (!Array.isArray(clientsData) || clientsData.length === 0) {
+    if (!Array.isArray(data) || data.length === 0) {
       throw new Error('Arquivo JSON inválido ou vazio');
     }
+
+    loadFromData(data);
 
     const fileSelectedEl = document.getElementById('file-selected-corretor');
     if (fileSelectedEl) {
       fileSelectedEl.classList.remove('hidden');
-      fileSelectedEl.textContent = `${file.name} - ${clientsData.length} clientes`;
+      fileSelectedEl.textContent = `${file.name} - ${data.length} clientes`;
     }
-
-    renderClientsList(clientsData);
-
-    document.getElementById('empty-state-corretor')?.classList.add('hidden');
-    document.getElementById('clients-list-corretor')?.classList.remove('hidden');
-    document.getElementById('search-container-corretor')?.classList.remove('hidden');
-
-    notification.success(`${clientsData.length} clientes carregados!`);
 
   } catch (error) {
     notification.error('Erro ao ler arquivo JSON: ' + error.message);
@@ -321,13 +403,18 @@ function openEditModal(instalacao) {
   const client = clientsData.find(c => String(c.instalacao) === String(instalacao));
   if (!client) return;
 
-  currentEditingClient = { ...client };
+  currentEditingClient = JSON.parse(JSON.stringify(client));
 
-  document.getElementById('modal-client-name').textContent = client.nome;
-  document.getElementById('edit-credito-qtd').value = client.det_credito_qtd || 0;
-  document.getElementById('edit-credito-tar').value = client.det_credito_tar || 0;
-  document.getElementById('edit-desconto').value = 0;
-  document.getElementById('edit-ajuste').value = 0;
+  // Garante que _editor existe
+  if (!currentEditingClient._editor) {
+    currentEditingClient = recalculateInvoice(currentEditingClient);
+  }
+
+  document.getElementById('modal-client-name').textContent = `${currentEditingClient.nome} (${currentEditingClient.instalacao})`;
+  document.getElementById('edit-comp_qtd').value = currentEditingClient._editor.comp_qtd;
+  document.getElementById('edit-tarifa_comp_ev').value = currentEditingClient._editor.tarifa_comp_ev;
+  document.getElementById('edit-boleto_ev').value = currentEditingClient._editor.boleto_ev;
+  document.getElementById('edit-dist_outros').value = currentEditingClient._editor.dist_outros;
 
   updatePreview();
 
@@ -346,18 +433,22 @@ function closeModal() {
  * Atualiza prévia de cálculos
  */
 function updatePreview() {
-  const qtd = parseFloat(document.getElementById('edit-credito-qtd')?.value || 0);
-  const tar = parseFloat(document.getElementById('edit-credito-tar')?.value || 0);
-  const desconto = parseFloat(document.getElementById('edit-desconto')?.value || 0);
-  const ajuste = parseFloat(document.getElementById('edit-ajuste')?.value || 0);
+  if (!currentEditingClient) return;
 
-  const credito = qtd * tar;
-  const total = credito - desconto + ajuste;
+  currentEditingClient._editor = {
+    comp_qtd: parseFloat(document.getElementById('edit-comp_qtd')?.value || 0),
+    tarifa_comp_ev: parseFloat(document.getElementById('edit-tarifa_comp_ev')?.value || 0),
+    boleto_ev: parseFloat(document.getElementById('edit-boleto_ev')?.value || 0),
+    dist_outros: parseFloat(document.getElementById('edit-dist_outros')?.value || 0),
+  };
 
-  document.getElementById('preview-credito').textContent = formatCurrency(credito);
-  document.getElementById('preview-desconto').textContent = formatCurrency(desconto);
-  document.getElementById('preview-ajuste').textContent = formatCurrency(ajuste);
-  document.getElementById('preview-total').textContent = formatCurrency(total);
+  const recalculated = recalculateInvoice(currentEditingClient);
+
+  document.getElementById('res-total_contribuicao').textContent = formatCurrency(recalculated.totalPagar);
+  document.getElementById('res-total_distribuidora').textContent = formatCurrency(recalculated.dist_total);
+  document.getElementById('res-total_com_gd').textContent = formatCurrency(recalculated.econ_total_com);
+  document.getElementById('res-total_sem_gd').textContent = formatCurrency(recalculated.econ_total_sem);
+  document.getElementById('res-economia_mes').textContent = formatCurrency(recalculated.economiaMes);
 }
 
 /**
@@ -366,16 +457,22 @@ function updatePreview() {
 async function handleSave() {
   if (!currentEditingClient) return;
 
-  const qtd = parseFloat(document.getElementById('edit-credito-qtd')?.value || 0);
-  const tar = parseFloat(document.getElementById('edit-credito-tar')?.value || 0);
-  const desconto = parseFloat(document.getElementById('edit-desconto')?.value || 0);
-  const ajuste = parseFloat(document.getElementById('edit-ajuste')?.value || 0);
+  currentEditingClient._editor = {
+    comp_qtd: parseFloat(document.getElementById('edit-comp_qtd')?.value || 0),
+    tarifa_comp_ev: parseFloat(document.getElementById('edit-tarifa_comp_ev')?.value || 0),
+    boleto_ev: parseFloat(document.getElementById('edit-boleto_ev')?.value || 0),
+    dist_outros: parseFloat(document.getElementById('edit-dist_outros')?.value || 0),
+  };
 
-  // Atualizar dados do cliente
-  currentEditingClient.det_credito_qtd = qtd;
-  currentEditingClient.det_credito_tar = tar;
-  currentEditingClient.det_credito_total = qtd * tar - desconto + ajuste;
-  currentEditingClient.totalPagar = currentEditingClient.det_credito_total;
+  const finalClientData = recalculateInvoice(currentEditingClient);
+
+  // Atualizar na lista
+  const index = clientsData.findIndex(c => c.instalacao === finalClientData.instalacao);
+  if (index !== -1) {
+    clientsData[index] = finalClientData;
+  }
+
+  renderClientsList(clientsData);
 
   const saveBtn = document.getElementById('save-edit-btn');
   if (saveBtn) {
@@ -384,28 +481,17 @@ async function handleSave() {
   }
 
   try {
-    // Gerar PDF com dados atualizados
-    const mesRef = currentEditingClient.emissao_iso?.substring(0, 7) || '2025-01';
-    const { blob, filename } = await pdfGenerator.generatePDF(currentEditingClient, mesRef);
+    const mesRef = finalClientData.emissao_iso?.substring(0, 7) || '2025-01';
+    const { blob, filename } = await pdfGenerator.generatePDF(finalClientData, mesRef);
 
-    // Download
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
-    document.body.appendChild(a);
     a.click();
     URL.revokeObjectURL(url);
-    a.remove();
 
-    // Atualizar cliente na lista
-    const index = clientsData.findIndex(c => c.instalacao === currentEditingClient.instalacao);
-    if (index !== -1) {
-      clientsData[index] = currentEditingClient;
-      renderClientsList(clientsData);
-    }
-
-    notification.success('PDF gerado com sucesso!');
+    notification.success('Fatura corrigida e PDF gerado!');
     closeModal();
 
   } catch (error) {
