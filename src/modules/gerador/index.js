@@ -27,9 +27,9 @@ export async function renderGerador() {
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <!-- Coluna Esquerda: Controles -->
-        <div class="lg:col-span-2 space-y-6">
+        <div class="lg:col-span-2 space-y-4">
           <!-- Upload de Arquivo -->
-          <div class="card">
+          <div class="card !p-4">
             <h2 class="text-xl font-semibold mb-4">1. Carregar Relatório</h2>
             <input id="file-upload-gerador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
             <div id="drop-zone-gerador" class="drop-zone">
@@ -41,7 +41,7 @@ export async function renderGerador() {
           </div>
 
           <!-- Parâmetros -->
-          <div class="card">
+          <div class="card !p-4">
             <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
             <div class="space-y-4">
               <div>

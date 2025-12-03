@@ -24,9 +24,9 @@ export async function renderProcessador() {
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Coluna Esquerda: Controles -->
-        <div class="lg:col-span-1 space-y-6">
+        <div class="lg:col-span-1 space-y-4">
           <!-- Upload de Arquivo -->
-          <div class="card">
+          <div class="card !p-4">
             <h2 class="text-xl font-semibold mb-4">1. Carregar Planilha</h2>
             <input id="file-upload-processador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
             <div id="drop-zone-processador" class="drop-zone">
@@ -38,7 +38,7 @@ export async function renderProcessador() {
           </div>
 
           <!-- Parâmetros -->
-          <div class="card">
+          <div class="card !p-4">
             <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
             <div class="space-y-4">
               <div>
