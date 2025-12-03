@@ -1,91 +1,92 @@
 /**
- * Módulo Gerador de Faturas
+ * Módulo Gerador de Faturas - Refatorado com StateManager
  */
 
+import stateManager from '../../core/StateManager.js';
+import fileStatus from '../../components/FileStatus.js';
 import excelProcessor from '../../core/excelProcessor.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
-import { validateFile, validateMonth, validateDate } from '../../core/validators.js';
-import { normalizeString } from '../../core/formatters.js';
+import { formatCurrency, normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
 import progressBar from '../../components/ProgressBar.js';
+import { validateFile } from '../../core/validators.js';
 
-
-let clientData = [];
-let selectedFile = null;
+// Variável local apenas para dados filtrados de busca
+let displayedClients = [];
+let isPyodideReady = false;
 
 /**
  * Renderiza a interface do gerador
  */
 export async function renderGerador() {
-
   return `
-    <div class="max-w-6xl mx-auto">
-      <div class="mb-8">
-        <h1 class="text-3xl font-bold mb-2">Gerador de Faturas</h1>
-        <p class="text-text-muted">Gere faturas em PDF a partir de planilhas Excel</p>
-      </div>
+    <div class="main-grid">
+      <!-- File Status Global -->
+      <div id="gerador-file-status" class="col-span-full hidden"></div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <!-- Coluna Esquerda: Controles -->
-        <div class="lg:col-span-2 space-y-4">
-          <!-- Upload de Arquivo -->
-          <div class="card !p-4">
-            <h2 class="text-xl font-semibold mb-4">1. Carregar Relatório</h2>
-            <input id="file-upload-gerador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
-            <div id="drop-zone-gerador" class="drop-zone">
-              <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
-              <p class="font-semibold">Arraste e solte ou clique</p>
-              <p class="text-sm text-text-muted mt-1">Formatos: .xlsx, .xlsm, .xls</p>
-            </div>
-            <p id="file-selected-gerador" class="mt-3 text-sm font-semibold text-success hidden"></p>
+      <!-- Left Panel: Controles -->
+      <div class="left-panel">
+        
+        <!-- Upload Card -->
+        <div class="panel-card" id="upload-card-gerador">
+          <h2 class="section-title">1. Fonte de Dados</h2>
+          <div id="drop-zone-gerador" class="drop-zone">
+            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+            <p class="font-semibold">Carregar Planilha</p>
+            <p class="text-sm text-text-muted mt-1">.xlsx, .xlsm, .xls</p>
           </div>
-
-          <!-- Parâmetros -->
-          <div class="card !p-4">
-            <h2 class="text-xl font-semibold mb-4">2. Parâmetros</h2>
-            <div class="space-y-4">
-              <div>
-                <label for="mes-referencia-gerador" class="block text-sm font-medium mb-1">Mês de Referência</label>
-                <input type="month" id="mes-referencia-gerador" class="input">
-              </div>
-              <div>
-                <label for="data-vencimento-gerador" class="block text-sm font-medium mb-1">Data de Vencimento</label>
-                <input type="date" id="data-vencimento-gerador" class="input">
-              </div>
-            </div>
-          </div>
-
-          <!-- Botão Processar -->
-          <button id="process-btn-gerador" class="w-full btn btn-primary text-lg py-3" disabled>
-            <i class="fas fa-cogs mr-2"></i>Processar Relatório
-          </button>
+          <input id="file-upload-gerador" type="file" class="hidden" accept=".xlsx,.xlsm,.xls">
         </div>
 
-        <!-- Coluna Direita: Resultados -->
-        <div class="lg:col-span-3 card">
-          <h2 class="text-xl font-semibold mb-4">3. Gerar Faturas</h2>
-          
-          <!-- Busca -->
-          <div id="search-container-gerador" class="relative mb-4 hidden">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-              <i class="fas fa-search text-gray-400"></i>
-            </span>
-            <input type="text" id="search-client-gerador" placeholder="Procurar cliente..." class="input pl-10">
+        <!-- Parâmetros -->
+        <div class="panel-card">
+          <h2 class="section-title">2. Parâmetros</h2>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium mb-1">Mês de Referência</label>
+              <input type="month" id="mes-referencia-gerador" class="input">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Data de Vencimento</label>
+              <input type="date" id="data-vencimento-gerador" class="input">
+            </div>
+          </div>
+        </div>
+
+        <!-- Botão Processar -->
+        <button id="process-btn-gerador" class="w-full btn btn-primary text-lg py-3 shadow-lg hover:shadow-xl transition-all" disabled>
+          <i class="fas fa-cogs mr-2"></i>Processar e Listar
+        </button>
+      </div>
+
+      <!-- Right Panel: Resultados -->
+      <div class="right-panel">
+        <div class="panel-card min-h-[500px]">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="section-title mb-0">3. Resultados (Faturas)</h2>
+            
+            <!-- Busca -->
+            <div id="search-container-gerador" class="hidden relative w-64">
+              <input type="text" id="search-client-gerador" placeholder="Buscar cliente..." class="input pl-9 py-2 text-sm">
+              <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+            </div>
           </div>
 
           <!-- Lista de Clientes -->
-          <div id="result-list-gerador" class="space-y-2 max-h-96 overflow-y-auto">
-            <div id="empty-state-gerador" class="text-center text-gray-500 py-10">
-              <i class="fas fa-users text-5xl mb-3 text-gray-300"></i>
-              <p class="font-semibold">Aguardando processamento</p>
-              <p class="text-sm mt-1">Os clientes aparecerão aqui após o processamento</p>
+          <div id="result-list-gerador" class="space-y-2 max-h-[600px] overflow-y-auto pr-2">
+            <div id="empty-state-gerador" class="text-center text-gray-500 py-20 flex flex-col items-center">
+              <div class="bg-gray-50 p-6 rounded-full mb-4">
+                <i class="fas fa-file-invoice text-4xl text-gray-300"></i>
+              </div>
+              <p class="font-medium">Nenhuma fatura gerada</p>
+              <p class="text-sm mt-1 max-w-xs">Carregue a planilha e defina os parâmetros para visualizar os clientes.</p>
             </div>
           </div>
 
-          <!-- Botão Download All -->
-          <div id="download-all-area-gerador" class="mt-4 hidden">
-            <button id="download-all-btn-gerador" class="w-full btn bg-gray-700 text-white hover:bg-gray-900 py-2">
-              <i class="fas fa-file-archive mr-2"></i>Baixar Todas (ZIP)
+          <!-- Download All -->
+          <div id="download-all-area-gerador" class="mt-6 pt-6 border-t border-gray-100 hidden">
+            <button id="download-all-btn-gerador" class="w-full btn bg-gray-800 text-white hover:bg-gray-900 py-3">
+              <i class="fas fa-file-archive mr-2"></i>Baixar Todas as Faturas (ZIP)
             </button>
           </div>
         </div>
@@ -98,78 +99,101 @@ export async function renderGerador() {
  * Inicializa eventos do módulo gerador
  */
 export function initGerador() {
+  // Inicializa componente de status global
+  new fileStatus.constructor('gerador-file-status');
+
   const fileUpload = document.getElementById('file-upload-gerador');
   const dropZone = document.getElementById('drop-zone-gerador');
-  const fileSelectedEl = document.getElementById('file-selected-gerador');
-  const mesReferenciaEl = document.getElementById('mes-referencia-gerador');
-  const dataVencimentoEl = document.getElementById('data-vencimento-gerador');
   const processBtn = document.getElementById('process-btn-gerador');
   const searchInput = document.getElementById('search-client-gerador');
   const downloadAllBtn = document.getElementById('download-all-btn-gerador');
 
-  if (!fileUpload || !dropZone) return;
+  // Sincronizar com Estado Global
+  stateManager.subscribe((state) => {
+    updateUI(state);
+  });
 
-  // Upload de arquivo
-  dropZone.addEventListener('click', () => fileUpload.click());
-  fileUpload.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+  // Inicializa UI com estado atual
+  updateUI(stateManager.getState());
 
-  // Drag and drop
+  // Upload Logic
+  const handleUpload = (file) => {
+    const valid = validateFile(file);
+    if (!valid.valid) {
+      notification.error(valid.error);
+      return;
+    }
+
+    if (stateManager.hasFile()) {
+      fileStatus.constructor.requestFileChange(() => {
+        stateManager.setFile(file);
+      });
+    } else {
+      stateManager.setFile(file);
+    }
+  };
+
+  // Event Listeners - Upload
+  dropZone?.addEventListener('click', () => fileUpload.click());
+  fileUpload?.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleUpload(e.target.files[0]);
+  });
+
+  // Drag and Drop
   ['dragenter', 'dragover'].forEach(evName => {
-    dropZone.addEventListener(evName, (e) => {
+    dropZone?.addEventListener(evName, (e) => {
       e.preventDefault();
       dropZone.classList.add('drop-active');
     });
   });
 
   ['dragleave', 'drop'].forEach(evName => {
-    dropZone.addEventListener(evName, (e) => {
+    dropZone?.addEventListener(evName, (e) => {
       e.preventDefault();
       dropZone.classList.remove('drop-active');
     });
   });
 
-  dropZone.addEventListener('drop', (e) => handleFileSelect(e.dataTransfer.files[0]));
+  dropZone?.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
+  });
 
-  // Validação de formulário
-  [mesReferenciaEl, dataVencimentoEl].forEach(el => {
-    if (el) el.addEventListener('change', validateForm);
+  // Parâmetros - Atualiza estado global ao mudar
+  const mesReferenciaEl = document.getElementById('mes-referencia-gerador');
+  const dataVencimentoEl = document.getElementById('data-vencimento-gerador');
+
+  mesReferenciaEl?.addEventListener('change', (e) => {
+    stateManager.setParams({ mesReferencia: e.target.value });
+  });
+
+  dataVencimentoEl?.addEventListener('change', (e) => {
+    stateManager.setParams({ dataVencimento: e.target.value });
   });
 
   // Processar
-  if (processBtn) {
-    processBtn.addEventListener('click', handleProcess);
-  }
+  processBtn?.addEventListener('click', handleProcess);
 
   // Busca
-  if (searchInput) {
-    searchInput.addEventListener('input', handleSearch);
-  }
+  searchInput?.addEventListener('input', handleSearch);
 
-  // Download all
-  if (downloadAllBtn) {
-    downloadAllBtn.addEventListener('click', handleDownloadAll);
-  }
+  // Download All
+  downloadAllBtn?.addEventListener('click', handleDownloadAll);
 
   // Inicializar Pyodide
   initPyodide();
 }
-
-let isPyodideReady = false;
 
 /**
  * Inicializa Pyodide
  */
 async function initPyodide() {
   try {
-    const loadingStatus = document.getElementById('loading-status');
-    if (loadingStatus) loadingStatus.textContent = 'Carregando motor de processamento...';
-
     await excelProcessor.init((status) => {
-      if (loadingStatus) loadingStatus.textContent = status;
+      console.log('Pyodide:', status);
     });
 
     isPyodideReady = true;
-    validateForm(); // Revalidar formulário agora que o Pyodide está pronto
+    updateUI(stateManager.getState()); // Revalidar UI
 
     notification.info('Sistema de processamento pronto!');
   } catch (error) {
@@ -179,48 +203,61 @@ async function initPyodide() {
 }
 
 /**
- * Manipula seleção de arquivo
+ * Atualiza UI baseado no estado global
  */
-function handleFileSelect(file) {
-  const validation = validateFile(file);
-
-  if (!validation.valid) {
-    notification.error(validation.error);
-    return;
-  }
-
-  selectedFile = file;
-  const fileSelectedEl = document.getElementById('file-selected-gerador');
-  if (fileSelectedEl) {
-    fileSelectedEl.classList.remove('hidden');
-    fileSelectedEl.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-  }
-
-  validateForm();
-}
-
-/**
- * Valida formulário
- */
-function validateForm() {
-  const mesReferenciaEl = document.getElementById('mes-referencia-gerador');
-  const dataVencimentoEl = document.getElementById('data-vencimento-gerador');
+function updateUI(state) {
+  const uploadCard = document.getElementById('upload-card-gerador');
+  const fileStatusEl = document.getElementById('gerador-file-status');
+  const mesRef = document.getElementById('mes-referencia-gerador');
+  const dataVenc = document.getElementById('data-vencimento-gerador');
   const processBtn = document.getElementById('process-btn-gerador');
 
-  if (!processBtn) return;
+  // Sincroniza Inputs com estado
+  if (mesRef && state.params.mesReferencia) {
+    mesRef.value = state.params.mesReferencia;
+  }
+  if (dataVenc && state.params.dataVencimento) {
+    dataVenc.value = state.params.dataVencimento;
+  }
 
-  const isReady = selectedFile &&
-    mesReferenciaEl?.value &&
-    dataVencimentoEl?.value &&
-    isPyodideReady;
+  // Gerencia Visibilidade do Upload
+  if (state.file) {
+    uploadCard?.classList.add('hidden');
+    fileStatusEl?.classList.remove('hidden');
+  } else {
+    uploadCard?.classList.remove('hidden');
+    fileStatusEl?.classList.add('hidden');
+  }
 
-  processBtn.disabled = !isReady;
-  processBtn.classList.toggle('opacity-50', !isReady);
+  // Habilita/Desabilita Botão Processar
+  const isReady = state.file && state.params.mesReferencia && state.params.dataVencimento && isPyodideReady;
 
-  if (!isPyodideReady && selectedFile) {
-    processBtn.innerHTML = '<div class="loader !w-4 !h-4 !border-2"></div> Carregando sistema...';
-  } else if (isReady) {
-    processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Processar Relatório';
+  if (processBtn) {
+    processBtn.disabled = !isReady;
+
+    if (!isPyodideReady && state.file) {
+      processBtn.innerHTML = '<div class="loader !w-4 !h-4 !border-2"></div> Carregando sistema...';
+    } else if (state.processedData.length > 0) {
+      processBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Reprocessar Lista';
+    } else {
+      processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Processar e Listar';
+    }
+  }
+
+  // Se já tiver dados processados, mostra a lista automaticamente
+  if (state.processedData.length > 0) {
+    displayedClients = state.processedData;
+    renderClientList(state.processedData);
+    document.getElementById('search-container-gerador')?.classList.remove('hidden');
+    document.getElementById('download-all-area-gerador')?.classList.remove('hidden');
+  } else {
+    const emptyState = document.getElementById('empty-state-gerador');
+    const resultList = document.getElementById('result-list-gerador');
+    if (emptyState && resultList) {
+      resultList.innerHTML = emptyState.outerHTML;
+    }
+    document.getElementById('search-container-gerador')?.classList.add('hidden');
+    document.getElementById('download-all-area-gerador')?.classList.add('hidden');
   }
 }
 
@@ -228,41 +265,41 @@ function validateForm() {
  * Processa relatório
  */
 async function handleProcess() {
-  const mesReferenciaEl = document.getElementById('mes-referencia-gerador');
-  const dataVencimentoEl = document.getElementById('data-vencimento-gerador');
+  const state = stateManager.getState();
   const processBtn = document.getElementById('process-btn-gerador');
 
-  if (!selectedFile || !mesReferenciaEl || !dataVencimentoEl) return;
+  if (!state.file || !state.params.mesReferencia || !state.params.dataVencimento) {
+    notification.error('Preencha todos os campos');
+    return;
+  }
 
   try {
     // Desabilitar botão
-    processBtn.disabled = true;
-    processBtn.innerHTML = '<div class="loader"></div> Processando...';
+    if (processBtn) {
+      processBtn.disabled = true;
+      processBtn.innerHTML = '<div class="loader"></div> Processando...';
+    }
 
-    // Processar
-    clientData = await excelProcessor.processFile(
-      selectedFile,
-      mesReferenciaEl.value,
-      dataVencimentoEl.value
+    // Processar arquivo
+    const data = await excelProcessor.processFile(
+      state.file,
+      state.params.mesReferencia,
+      state.params.dataVencimento
     );
 
-    // Renderizar lista
-    renderClientList(clientData);
+    // Salvar no estado global
+    stateManager.setProcessedData(data);
 
-    // Mostrar busca e download all
-    document.getElementById('search-container-gerador')?.classList.remove('hidden');
-    document.getElementById('download-all-area-gerador')?.classList.remove('hidden');
-    document.getElementById('empty-state-gerador')?.classList.add('hidden');
-
-    notification.success(`${clientData.length} clientes processados com sucesso!`);
+    notification.success(`${data.length} clientes processados com sucesso!`);
 
   } catch (error) {
     notification.error(error.message || 'Erro ao processar arquivo');
     console.error(error);
   } finally {
-    processBtn.disabled = false;
-    processBtn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Processar Relatório';
-    validateForm();
+    if (processBtn) {
+      processBtn.disabled = false;
+    }
+    updateUI(stateManager.getState());
   }
 }
 
@@ -276,19 +313,25 @@ function renderClientList(clients) {
   resultList.innerHTML = '';
 
   if (clients.length === 0) {
-    resultList.innerHTML = '<p class="text-center text-gray-500 py-8">Nenhum cliente encontrado</p>';
+    resultList.innerHTML = `
+      <div class="text-center text-gray-500 py-10">
+        <i class="fas fa-search text-4xl mb-3 text-gray-300"></i>
+        <p class="font-semibold">Nenhum cliente encontrado</p>
+      </div>
+    `;
     return;
   }
 
   clients.forEach(client => {
     const div = document.createElement('div');
-    div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors';
+    div.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200';
     div.innerHTML = `
-      <div>
-        <p class="font-medium">${client.nome}</p>
-        <p class="text-sm text-text-muted">Instalação: ${client.instalacao}</p>
+      <div class="flex-1">
+        <p class="font-semibold text-gray-900">${client.nome}</p>
+        <p class="text-sm text-gray-600">Instalação: ${client.instalacao}</p>
+        ${client.valorTotal ? `<p class="text-sm text-blue-600 font-medium mt-1">${formatCurrency(client.valorTotal)}</p>` : ''}
       </div>
-      <button class="btn btn-primary btn-sm generate-pdf-btn" data-instalacao="${client.instalacao}">
+      <button class="btn btn-primary generate-pdf-btn" data-instalacao="${client.instalacao}">
         <i class="fas fa-file-pdf mr-1"></i>Gerar PDF
       </button>
     `;
@@ -305,11 +348,13 @@ function renderClientList(clients) {
  * Gera PDF individual
  */
 async function handleGeneratePDF(instalacao) {
-  const client = clientData.find(c => String(c.instalacao) === String(instalacao));
-  if (!client) return;
+  const state = stateManager.getState();
+  const client = state.processedData.find(c => String(c.instalacao) === String(instalacao));
 
-  const mesReferenciaEl = document.getElementById('mes-referencia-gerador');
-  if (!mesReferenciaEl) return;
+  if (!client) {
+    notification.error('Cliente não encontrado');
+    return;
+  }
 
   const btn = document.querySelector(`[data-instalacao="${instalacao}"]`);
   if (btn) {
@@ -318,10 +363,7 @@ async function handleGeneratePDF(instalacao) {
   }
 
   try {
-    console.log('Objeto pdfGenerator:', pdfGenerator);
-    console.log('Tipo de generatePDF:', typeof pdfGenerator?.generatePDF);
-
-    const { blob, filename } = await pdfGenerator.generatePDF(client, mesReferenciaEl.value);
+    const { blob, filename } = await pdfGenerator.generatePDF(client, state.params.mesReferencia);
 
     // Download
     const url = URL.createObjectURL(blob);
@@ -349,11 +391,15 @@ async function handleGeneratePDF(instalacao) {
  * Busca clientes
  */
 function handleSearch(e) {
+  const state = stateManager.getState();
   const query = normalizeString(e.target.value);
-  const filtered = clientData.filter(c =>
+
+  const filtered = state.processedData.filter(c =>
     normalizeString(c.nome).includes(query) ||
-    normalizeString(c.instalacao).includes(query)
+    normalizeString(String(c.instalacao)).includes(query)
   );
+
+  displayedClients = filtered;
   renderClientList(filtered);
 }
 
@@ -361,15 +407,19 @@ function handleSearch(e) {
  * Download de todas as faturas em ZIP
  */
 async function handleDownloadAll() {
-  const mesReferenciaEl = document.getElementById('mes-referencia-gerador');
-  if (!mesReferenciaEl || clientData.length === 0) return;
+  const state = stateManager.getState();
+
+  if (state.processedData.length === 0) {
+    notification.error('Nenhum cliente para gerar');
+    return;
+  }
 
   try {
     progressBar.show('Gerando PDFs...', '');
 
     const zipBlob = await pdfGenerator.generateZIP(
-      clientData,
-      mesReferenciaEl.value,
+      state.processedData,
+      state.params.mesReferencia,
       (current, total) => {
         progressBar.setProgress(current, total, 'Gerando PDFs...');
       }
@@ -381,7 +431,7 @@ async function handleDownloadAll() {
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Faturas_${mesReferenciaEl.value}.zip`;
+    a.download = `Faturas_${state.params.mesReferencia}.zip`;
     document.body.appendChild(a);
     a.click();
     URL.revokeObjectURL(url);

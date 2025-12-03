@@ -123,6 +123,29 @@
     animation: spin 0.8s linear infinite;
     display: inline-block;
   }
+
+  /* Grid Padrão do Sistema */
+  .main-grid {
+    @apply grid grid-cols-1 lg:grid-cols-12 gap-6 items-start;
+  }
+
+  .left-panel {
+    @apply lg:col-span-4 space-y-6 sticky top-24;
+  }
+
+  .right-panel {
+    @apply lg:col-span-8 space-y-6;
+  }
+
+  /* Padronização de Cards */
+  .panel-card {
+    @apply bg-white border border-border rounded-xl p-5 shadow-sm;
+  }
+
+  /* Padronização de Seções */
+  .section-title {
+    @apply text-lg font-semibold mb-3 text-text;
+  }
 }
 
 @keyframes spin {
