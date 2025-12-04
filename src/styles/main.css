@@ -37,14 +37,8 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     letter-spacing: -0.02em;
-    /* Kerning mais apertado para títulos */
   }
 }
 
@@ -94,17 +88,6 @@
     color: var(--apple-gray-3);
   }
 
-  .text-body {
-    font-size: 15px;
-    line-height: 1.5;
-    color: #333;
-  }
-
-  .text-caption {
-    font-size: 13px;
-    color: var(--apple-gray-2);
-  }
-
   /* Inputs Refinados */
   .input {
     @apply w-full px-4 py-3 rounded-xl border-none bg-gray-100/80 text-gray-900 focus:bg-white transition-all duration-200 ease-out font-medium;
@@ -123,7 +106,6 @@
     letter-spacing: -0.01em;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-    /* Bouncy effect */
     @apply inline-flex items-center justify-center px-6 py-3 select-none;
   }
 
@@ -173,36 +155,24 @@
 
 /* Animações Globais */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(15px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes scaleIn {
+/* Animação Específica para Notificações Centralizadas */
+@keyframes slideInTop {
   from {
+    transform: translate(-50%, -100%); /* Começa acima da tela, mantendo X centralizado */
     opacity: 0;
-    transform: scale(0.95);
   }
-
   to {
+    transform: translate(-50%, 0); /* Pousa na posição correta */
     opacity: 1;
-    transform: scale(1);
   }
 }
 
@@ -214,22 +184,14 @@
   animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.animate-scale-in {
-  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+.slide-in-top {
+  animation: slideInTop 0.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
 }
 
-/* Utilitários de delay para animação em cascata */
-.delay-100 {
-  animation-delay: 100ms;
-}
-
-.delay-200 {
-  animation-delay: 200ms;
-}
-
-.delay-300 {
-  animation-delay: 300ms;
-}
+/* Utilitários de delay */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
 
 /* Scrollbar invisível estilo Mac */
 ::-webkit-scrollbar {

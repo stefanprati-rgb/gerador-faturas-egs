@@ -7,11 +7,7 @@ export class Notification {
     initContainer() {
         let container = document.getElementById(this.containerId);
 
-        // Classes para posicionamento centralizado no topo
-        // top-4: margem do topo
-        // left-1/2: começa no meio da tela
-        // -translate-x-1/2: centraliza exatamente o elemento
-        // z-50: garante que fique sobre tudo
+        // Classes para centralizar no topo da tela (z-50 garante que fique sobre tudo)
         const classes = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50 space-y-3 pointer-events-none min-w-[300px] text-center';
 
         if (!container) {
@@ -20,14 +16,14 @@ export class Notification {
             document.body.appendChild(container);
         }
 
-        // Força a atualização das classes para garantir o novo posicionamento
+        // Garante que as classes de posicionamento estejam corretas
         container.className = classes;
         this.container = container;
     }
 
     show(message, type = 'info', duration = 5000) {
         const notification = document.createElement('div');
-        // Adicionamos 'pointer-events-auto' para permitir clicar no botão fechar
+        // slide-in-top será animado via CSS ou Tailwind
         notification.className = `notification slide-in-top ${type} pointer-events-auto mx-auto shadow-xl border-l-4`;
 
         const icons = {
@@ -43,7 +39,7 @@ export class Notification {
             warning: 'bg-white border-warning text-gray-800',
             info: 'bg-white border-primary text-gray-800'
         };
-
+        
         const iconColor = {
             success: 'text-success',
             error: 'text-error',
@@ -51,7 +47,6 @@ export class Notification {
             info: 'text-primary'
         };
 
-        // Layout melhorado para notificação central
         notification.innerHTML = `
             <div class="${styles[type]} px-6 py-4 rounded-r-lg flex items-center gap-4 min-w-[320px] max-w-md">
                 <i class="fas ${icons[type]} ${iconColor[type]} text-2xl"></i>
@@ -77,14 +72,12 @@ export class Notification {
     }
 
     remove(notification) {
-        // Animação de saída para cima
         notification.style.transition = 'all 0.3s ease-out';
         notification.style.opacity = '0';
         notification.style.transform = 'translateY(-20px)';
         setTimeout(() => notification.remove(), 300);
     }
 
-    // Métodos auxiliares mantidos...
     success(msg, dur) { return this.show(msg, 'success', dur); }
     error(msg, dur) { return this.show(msg, 'error', dur); }
     warning(msg, dur) { return this.show(msg, 'warning', dur); }

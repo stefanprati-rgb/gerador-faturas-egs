@@ -1,76 +1,50 @@
-/**
- * StateManager - Single Source of Truth para o estado da aplicação
- */
+import notification from '../components/Notification.js';
 
 class StateManager {
     constructor() {
         this.state = {
             file: null,
-            meta: null,
+            processedData: [],
+            validationWarnings: [], // Armazena alertas de validação
+            meta: {
+                fileName: null,
+                fileSize: 0,
+                uploadTime: null
+            },
             params: {
                 mesReferencia: '',
                 dataVencimento: ''
-            },
-            processedData: [],
-            validationWarnings: [] // Novo campo para alertas de validação
+            }
         };
-        this.subscribers = [];
+        this.listeners = [];
     }
 
     /**
-     * Retorna o estado atual
-     */
-    getState() {
-        return { ...this.state };
-    }
-
-    /**
-     * Define o arquivo carregado
+     * Define o arquivo atual e limpa dados processados anteriores
      */
     setFile(file) {
+        if (this.state.file) {
+            console.warn('Substituindo arquivo existente...');
+        }
         this.state.file = file;
         this.state.meta = {
             fileName: file.name,
             fileSize: file.size,
             uploadTime: new Date()
         };
-        // Reseta dados e warnings ao trocar arquivo
+        
+        // Ao trocar o arquivo, invalidamos os dados processados antigos
         this.state.processedData = [];
         this.state.validationWarnings = [];
+        
         this.notify();
     }
 
     /**
-     * Verifica se há arquivo carregado
+     * Define os dados processados e avisos retornados pelo Python
+     * Aceita tanto o formato novo {data, warnings} quanto array simples
      */
-    hasFile() {
-        return this.state.file !== null;
-    }
-
-    /**
-     * Remove o arquivo atual
-     */
-    clearFile() {
-        this.state.file = null;
-        this.state.meta = null;
-        this.state.processedData = [];
-        this.state.validationWarnings = [];
-        this.notify();
-    }
-
-    /**
-     * Atualiza parâmetros (mesReferencia, dataVencimento)
-     */
-    setParams(params) {
-        this.state.params = { ...this.state.params, ...params };
-        this.notify();
-    }
-
-    /**
-     * Define os dados processados (aceita objeto com data e warnings)
-     */
-    setProcessedData(result) {
-        // Suporta tanto array direto quanto objeto {data, warnings}
+    setProcessedResult(result) {
         if (Array.isArray(result)) {
             this.state.processedData = result;
             this.state.validationWarnings = [];
@@ -81,8 +55,44 @@ class StateManager {
         this.notify();
     }
 
+    // Alias para compatibilidade, caso algum módulo antigo ainda chame assim
+    setProcessedData(data) {
+        this.setProcessedResult(data);
+    }
+
     /**
-     * Limpa os dados processados
+     * Atualiza parâmetros globais (datas)
+     */
+    setParams(params) {
+        this.state.params = { ...this.state.params, ...params };
+        this.notify();
+    }
+
+    getState() {
+        return { ...this.state };
+    }
+
+    hasFile() {
+        return !!this.state.file;
+    }
+
+    hasData() {
+        return this.state.processedData && this.state.processedData.length > 0;
+    }
+
+    /**
+     * Remove o arquivo atual (limpeza manual)
+     */
+    clearFile() {
+        this.state.file = null;
+        this.state.meta = null;
+        this.state.processedData = [];
+        this.state.validationWarnings = [];
+        this.notify();
+    }
+
+    /**
+     * Limpa apenas os dados processados
      */
     clearProcessedData() {
         this.state.processedData = [];
@@ -91,41 +101,39 @@ class StateManager {
     }
 
     /**
-     * Reseta todo o estado
+     * Reseta o sistema completamente (usado pelo botão Reset)
      */
     reset() {
         this.state = {
             file: null,
-            meta: null,
-            params: {
-                mesReferencia: '',
-                dataVencimento: ''
-            },
             processedData: [],
-            validationWarnings: []
+            validationWarnings: [],
+            meta: { fileName: null, fileSize: 0, uploadTime: null },
+            params: { mesReferencia: '', dataVencimento: '' }
         };
-        this.notify();
+        notification.info('Sistema resetado. Pronto para novo arquivo.');
+        this.notify('RESET');
     }
 
     /**
      * Inscreve um listener para mudanças de estado
      */
     subscribe(callback) {
-        this.subscribers.push(callback);
-        // Retorna função para cancelar inscrição
+        this.listeners.push(callback);
+        // Retorna função para cancelar inscrição (unsubscribe)
         return () => {
-            this.subscribers = this.subscribers.filter(cb => cb !== callback);
+            this.listeners = this.listeners.filter(l => l !== callback);
         };
     }
 
     /**
-     * Notifica todos os subscribers sobre mudança de estado
+     * Notifica todos os ouvintes
      */
-    notify() {
-        this.subscribers.forEach(callback => callback(this.getState()));
+    notify(action = 'UPDATE') {
+        // Passamos o estado e a ação para os ouvintes
+        this.listeners.forEach(callback => callback(this.state, action));
     }
 }
 
-// Exporta instância única (singleton)
-const stateManager = new StateManager();
-export default stateManager;
+// Exporta instância única (Singleton)
+export default new StateManager();
