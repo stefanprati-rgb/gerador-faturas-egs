@@ -30,15 +30,7 @@ COLUMNS_MAP = {
 
 # --- FUNÇÕES AUXILIARES ---
 
-def _norm(text: str) -> str:
-    """Normaliza texto para chaves de busca."""
-    if pd.isna(text) or text is None:
-        return ""
-    text = str(text).strip().lower()
-    text = text.replace('á', 'a').replace('ã', 'a').replace('à', 'a').replace('é', 'e').replace('ê', 'e')
-    text = text.replace('í', 'i').replace('ó', 'o').replace('ô', 'o').replace('ú', 'u').replace('ç', 'c')
-    text = re.sub(r'[^a-z0-9\s/]', '', text) 
-    return ' '.join(text.split())
+# _norm function is imported from utils_normalizers.py via global execution
 
 def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
     """Localiza a coluna de Instalação (Chave Primária)."""
@@ -157,7 +149,7 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                     final_client_name = nome_cliente
                 else:
                     # SE NÃO encontrado -> Usa Instalação e Sinaliza
-                    final_client_name = f"Cliente {raw_id}" # Fallback visual
+                    final_client_name = f"UC {raw_id}" # Fallback visual (Unidade Consumidora)
                     status_mapeamento = "Nome Não Mapeado"
                     warnings.append({
                         "type": "warning",
