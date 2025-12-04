@@ -3,6 +3,7 @@ import io, json
 import traceback
 import warnings as python_warnings
 from datetime import datetime
+import re # Adicionado para mapeamento flexível de colunas
 
 # Suprime warnings do openpyxl sobre Data Validation
 python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
@@ -17,7 +18,7 @@ python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl'
 COLUMNS_MAP = {
     'ref': ["REF", "Mês de Referência", "Competência"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
-    # ADICIONADO: 'NOME' e 'RAZÃO SOCIAL' como alternativas de mapeamento
+    # 'Nome/Razão Social' será resolvido via JOIN, mas mantido para mapeamento inicial.
     'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
     'doc': ["Documento", "CPF/CNPJ", "CPF", "CNPJ"],
     'consumo_qtd': ["CONSUMO_FP", "Energia consumida - Fora ponta - quantidade", "Consumo KWh"],
@@ -33,48 +34,198 @@ COLUMNS_MAP = {
     'num_conta': ["Número da conta", "Conta Contrato"]
 }
 
+# --- FUNÇÕES AUXILIARES PARA MAPEAMENTO FLEXÍVEL (Mecanismo de Mapeamento) ---
+
+def _norm(text: str) -> str:
+    """Normaliza o texto para comparação (lowercase e remove espaços/acentos)."""
+    if pd.isna(text) or text is None:
+        return ""
+    text = str(text).strip().lower()
+    # Substituições simples de acentos/cedilhas
+    text = text.replace('á', 'a').replace('ã', 'a').replace('à', 'a').replace('é', 'e').replace('ê', 'e')
+    text = text.replace('í', 'i').replace('ó', 'o').replace('ô', 'o').replace('ú', 'u').replace('ç', 'c')
+    # Remove caracteres não alfanuméricos (mantém o espaço/barra por segurança)
+    text = re.sub(r'[^a-z0-9\s/]', '', text) 
+    return ' '.join(text.split())
+
+def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
+    """
+    Mapeia de forma flexível a coluna de Identificador de UC (Instalação, instalacao, etc.).
+    """
+    # Usamos re.search para flexibilidade (cobrindo instalacao, instalção, instalacap, etc.)
+    termos_uc = [r'instala.ao', r'instalaçao', r'instalacao', r'uc']
+    
+    colunas_df_norm = {col: _norm(col) for col in df.columns}
+
+    for termo in termos_uc:
+        for col_original, col_norm in colunas_df_norm.items():
+            if re.search(termo, col_norm):
+                return col_original
+
+    # Falha se não encontrar
+    return None
+
+def _mapear_coluna_nome(df: pd.DataFrame) -> Optional[str]:
+    """Mapeia a coluna de nome/razão social usando a COLUMNS_MAP."""
+    termos_nome_norm = [_norm(c) for c in COLUMNS_MAP['nome']]
+    
+    for nome_coluna_original in df.columns:
+        if _norm(nome_coluna_original) in termos_nome_norm:
+             return nome_coluna_original
+    return None
+
+# --- FUNÇÃO PRINCIPAL DE RESOLUÇÃO DE JOIN ---
+
+def resolver_join_clientes(df_detalhe: pd.DataFrame, df_clientes: pd.DataFrame, instalacao_col_detalhe: str) -> pd.DataFrame:
+    """
+    Realiza o LEFT JOIN dos dados de consumo (Detalhe) com os dados mestre de clientes (Master)
+    para resolver o campo Nome/Razão Social, e marca o status de faturamento.
+    """
+    # Mapeamento dinâmico das colunas chave no Master
+    col_nome_master = _mapear_coluna_nome(df_clientes) 
+    col_uc_clientes = _mapear_coluna_uc(df_clientes) 
+
+    if not col_uc_clientes or not col_nome_master:
+        # Se as colunas master não forem encontradas, retorna o detalhe sem JOIN, 
+        # mas marcando todos como erro de nome ausente, conforme a instrução.
+        df_detalhe['Nome/Razão Social_RESOLVIDO'] = pd.NA
+        df_detalhe['STATUS_FATURAMENTO'] = 'ERRO: Master Inválido/Nome Ausente (Não Faturar)'
+        return df_detalhe
+    
+    # 1. Preparação dos Dados Mestre (Master)
+    df_clientes_join = df_clientes[[col_uc_clientes, col_nome_master]].rename(
+        columns={col_uc_clientes: 'UC_ID_JOIN', col_nome_master: 'Nome_Cliente_Master'}
+    )
+    df_clientes_join = df_clientes_join.drop_duplicates(subset=['UC_ID_JOIN'], keep='first')
+    
+    # 2. Preparação dos Dados de Detalhe (Left Side)
+    # Copia o DataFrame para não alterar o original em caso de renomeação de coluna
+    df_detalhe_temp = df_detalhe.copy()
+    
+    # Renomeia para chave de junção comum
+    df_detalhe_temp.rename(columns={instalacao_col_detalhe: 'UC_ID_JOIN'}, inplace=True)
+    
+    # Garante o tipo de dados string para a chave de junção
+    df_detalhe_temp['UC_ID_JOIN'] = df_detalhe_temp['UC_ID_JOIN'].astype(str).str.strip()
+    df_clientes_join['UC_ID_JOIN'] = df_clientes_join['UC_ID_JOIN'].astype(str).str.strip()
+
+    # 3. Executa o LEFT JOIN
+    df_processado = pd.merge(
+        df_detalhe_temp,
+        df_clientes_join,
+        on='UC_ID_JOIN',
+        how='left'
+    )
+    
+    # 4. Resolução de Mapeamento: Preenchimento do Nome do Cliente
+    
+    # Encontra a coluna de nome original na planilha de Detalhe
+    col_nome_original = _mapear_coluna_nome(df_detalhe) 
+    if col_nome_original is None:
+        # Se não houver coluna de nome mapeada no Detalhe, usa o nome do Master
+        df_processado['Nome/Razão Social_RESOLVIDO'] = df_processado['Nome_Cliente_Master']
+    else:
+        # Pega o nome existente no Detalhe
+        df_processado['Nome/Razão Social_RESOLVIDO'] = df_processado[col_nome_original]
+        
+        # Trata nulos/vazios na coluna original
+        df_processado['Nome/Razão Social_RESOLVIDO'] = df_processado['Nome/Razão Social_RESOLVIDO'].replace(['0', '', 'NaN'], pd.NA)
+        
+        # Preenche os nulos com o nome do cliente Master
+        df_processado['Nome/Razão Social_RESOLVIDO'] = df_processado['Nome/Razão Social_RESOLVIDO'].fillna(
+            df_processado['Nome_Cliente_Master']
+        )
+    
+    # 5. Marcação/Flag de Registros Inválidos
+    df_processado['STATUS_FATURAMENTO'] = 'OK'
+    
+    # Marca como ERRO se o nome final (após o JOIN) ainda estiver ausente/nulo
+    condicao_erro = df_processado['Nome/Razão Social_RESOLVIDO'].isnull() | (df_processado['Nome/Razão Social_RESOLVIDO'] == '')
+    
+    df_processado.loc[condicao_erro, 'STATUS_FATURAMENTO'] = 'ERRO: Nome/Razão Social Ausente (Não Faturar)'
+
+    # 6. Limpeza e Retorno
+    df_processado.drop(columns=['Nome_Cliente_Master'], inplace=True)
+    # Renomeia a coluna de instalação de volta, garantindo o nome original
+    df_processado.rename(columns={'UC_ID_JOIN': instalacao_col_detalhe}, inplace=True) 
+
+    return df_processado
+
+# --- FUNÇÃO PRINCIPAL DE ORQUESTRAÇÃO ---
 
 def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento_str):
     """
     Função principal de orquestração.
-    Chama as funções modularizadas para: 1. Leer Excel, 2. Mapear, 3. Filtrar, 4. Calcular.
+    Chama as funções modularizadas para: 1. Leer Excel, 2. Mapear, 3. Filtrar, 4. Resolver Nomes, 5. Calcular.
     """
     try:
-        # 1. Carregar Excel
+        # 1. Carregar Excel (Workbook)
         xls = pd.ExcelFile(io.BytesIO(file_content), engine='openpyxl')
         
-        # 2. Encontrar aba/cabeçalho
+        # 2. Encontrar aba/cabeçalho da Detalhe Por UC (Principal)
         core_keys = ["REF", "Instalação", "CRÉD. CONSUMIDO_FP"]
         # Assumes find_sheet_and_header is global
-        aba, header_idx = find_sheet_and_header(xls, core_keys, prefer_name="Detalhe") 
+        aba_detalhe, header_idx_detalhe = find_sheet_and_header(xls, core_keys, prefer_name="Detalhe") 
         
-        if not aba:
+        if not aba_detalhe:
             # Assumes find_sheet_and_header is global
-            aba, header_idx = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
+            aba_detalhe, header_idx_detalhe = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
         
-        if not aba:
-            return json.dumps({"error": "Não foi possível identificar a estrutura da planilha. Verifique os cabeçalhos."})
+        if not aba_detalhe:
+            return json.dumps({"error": "Não foi possível identificar a estrutura da planilha (Detalhe Por UC). Verifique os cabeçalhos."})
 
-        df = pd.read_excel(xls, sheet_name=aba, header=header_idx)
+        # Lê a planilha de Detalhe Por UC
+        df = pd.read_excel(xls, sheet_name=aba_detalhe, header=header_idx_detalhe)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # 3. Mapear colunas
+        # 3. Mapear colunas no Detalhe Por UC
         # Assumes pick_col is global
         cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()} 
         
         # DEBUG: Log das colunas mapeadas e disponíveis
-        print("=== DEBUG: Mapeamento de Colunas ===")
+        print("=== DEBUG: Mapeamento de Colunas (Detalhe Por UC) ===")
         print(f"Colunas disponíveis no DataFrame: {list(df.columns)}")
         print(f"Mapeamento encontrado:")
         for key, col_name in cols_map.items():
             print(f"  {key}: {col_name}")
         print("=" * 40)
         
-        if not cols_map['inst']:
-            return json.dumps({"error": "Coluna de Instalação/UC não encontrada."})
+        # Tenta encontrar a coluna de UC dinamicamente no Detalhe Por UC
+        col_instalacao_detalhe = _mapear_coluna_uc(df)
+        if not col_instalacao_detalhe:
+             return json.dumps({"error": "Coluna de Instalação/UC não encontrada na planilha de Detalhes."})
 
-        # 4. Filtrar pelo Mês de Referência
-        df_mes = df.copy()
+        # 4. Carregar Planilha Master (Infos Clientes) para o JOIN
+        
+        # Assumes find_sheet_and_header is global - Busca 'Infos Clientes'
+        aba_clientes, header_idx_clientes = find_sheet_and_header(xls, COLUMNS_MAP['nome'] + COLUMNS_MAP['inst'], prefer_name="Infos Clientes") 
+
+        df_clientes = None
+        if aba_clientes:
+            # Planilha Infos Clientes usa cabeçalho na linha 2 (índice 1) conforme snippet
+            df_clientes = pd.read_excel(xls, sheet_name=aba_clientes, header=1)
+            df_clientes.columns = [str(c).strip() for c in df_clientes.columns]
+        else:
+             print("AVISO: Planilha 'Infos Clientes' não encontrada. Apenas a lógica original será usada para nome.")
+        
+        # 5. Lógica de Resolução de Nome por JOIN (Se o Master for encontrado)
+        
+        df_final = df.copy()
+        if df_clientes is not None:
+             # Aplica a lógica de JOIN e Resolução de Mapeamento
+            df_final = resolver_join_clientes(df.copy(), df_clientes, col_instalacao_detalhe)
+            # A coluna de nome resolvida é 'Nome/Razão Social_RESOLVIDO'
+            cols_map['nome'] = ['Nome/Razão Social_RESOLVIDO'] # Redireciona o mapeamento de nome
+            
+            # Filtra os registros que não devem ser faturados (Nome ausente)
+            df_final = df_final[df_final['STATUS_FATURAMENTO'] == 'OK'].copy()
+            
+            # Se o DataFrame for vazio após o filtro de status
+            if df_final.empty:
+                return json.dumps({"error": "Nenhum registro apto para faturamento após a resolução de nome (nomes ausentes em todas as fontes)."}),
+        
+        # 6. Filtrar pelo Mês de Referência
+        df_mes = df_final.copy()
         if cols_map['ref']:
             date_input = mes_referencia_str.strip()
             if len(date_input) == 7: 
@@ -82,23 +233,23 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
             
             mes_ref_dt = datetime.strptime(date_input, '%Y-%m-%d')
             # Assumes safe_parse_date is global
-            df['__ref_dt'] = df[cols_map['ref']].apply(safe_parse_date) 
+            df_final['__ref_dt'] = df_final[pick_col(df_final, *COLUMNS_MAP['ref'])].apply(safe_parse_date) 
             
-            df_mes = df[
-                (df['__ref_dt'].dt.year == mes_ref_dt.year) & 
-                (df['__ref_dt'].dt.month == mes_ref_dt.month)
+            df_mes = df_final[
+                (df_final['__ref_dt'].dt.year == mes_ref_dt.year) & 
+                (df_final['__ref_dt'].dt.month == mes_ref_dt.month)
             ].copy()
             
             if df_mes.empty:
                 return json.dumps({"error": f"Nenhum registro encontrado para {mes_referencia_str}."})
 
-        # 5. Filtro de Valor Mínimo (R$ 5,00)
+        # 7. Filtro de Valor Mínimo (R$ 5,00)
         col_val = cols_map.get('boleto_ev')
         if col_val:
             # Assumes to_num is global
-            df_mes = df_mes[df_mes[col_val].apply(to_num) >= 5].copy() 
+            df_mes = df_mes[df_mes[pick_col(df_mes, *COLUMNS_MAP['boleto_ev'])].apply(to_num) >= 5].copy() 
         
-        # 6. Processamento e Cálculo
+        # 8. Processamento e Cálculo
         clientes = []
         warnings = []
         
@@ -117,79 +268,22 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                         if val: ends.append(val)
                 endereco_completo = " - ".join(ends) or "Endereço não informado"
                 
-                # ========== EXTRAÇÃO ROBUSTA DO NOME COM FALLBACK INTELIGENTE ==========
-                nome_col = cols_map.get('nome')
-                nome_valor = None
-                fonte_nome = "principal"
+                # ========== EXTRAÇÃO ROBUSTA DO NOME: AGORA USAMOS APENAS O RESULTADO DO JOIN ==========
+                nome_col = pick_col(df_mes, *cols_map.get('nome'))
+                nome_valor = safe_str(row.get(nome_col))
                 
-                # Tentativa 1: Coluna mapeada principal
-                if nome_col:
-                    nome_valor = safe_str(row.get(nome_col))
-                
-                # Tentativa 2: Fallback - buscar em TODAS as colunas que possam conter nome
+                # Se o JOIN não foi possível, ou se o nome ainda está nulo/vazio, usamos a Instalação
                 if not nome_valor or nome_valor == "":
-                    # Lista de possíveis colunas que podem conter o nome (case-insensitive)
-                    possible_name_cols = [
-                        'nome', 'name', 'cliente', 'client', 'razao social', 'razão social',
-                        'razao_social', 'razaosocial', 'titular', 'responsavel', 'responsável',
-                        'consumidor', 'proprietario', 'proprietário'
-                    ]
-                    
-                    # Normaliza os nomes das colunas do DataFrame
-                    df_cols_normalized = {_norm(c): c for c in df.columns}
-                    
-                    # Tenta encontrar o nome em qualquer coluna que pareça conter nome
-                    for possible_col in possible_name_cols:
-                        normalized_possible = _norm(possible_col)
-                        # Busca exata
-                        if normalized_possible in df_cols_normalized:
-                            col_original = df_cols_normalized[normalized_possible]
-                            nome_valor = safe_str(row.get(col_original))
-                            if nome_valor:
-                                fonte_nome = f"fallback-exato:{col_original}"
-                                print(f"  ✓ Nome encontrado via fallback na coluna: {col_original}")
-                                break
-                        
-                        # Busca parcial (contém)
-                        if not nome_valor:
-                            for norm_col, orig_col in df_cols_normalized.items():
-                                if normalized_possible in norm_col or norm_col in normalized_possible:
-                                    nome_valor = safe_str(row.get(orig_col))
-                                    if nome_valor:
-                                        fonte_nome = f"fallback-parcial:{orig_col}"
-                                        print(f"  ✓ Nome encontrado via fallback parcial na coluna: {orig_col}")
-                                        break
-                            if nome_valor:
-                                break
-                
-                # Tentativa 3: Último recurso - usar instalação como identificador
-                if not nome_valor or nome_valor == "":
-                    instalacao_id = safe_str(row.get(cols_map.get('inst')))
+                    instalacao_id = safe_str(row.get(col_instalacao_detalhe))
                     if instalacao_id:
                         nome_valor = f"Cliente {instalacao_id}"
-                        fonte_nome = "ultimo-recurso:instalacao"
-                        print(f"  ⚠ Usando instalação como nome: {nome_valor}")
-                
-                # DEBUG: Log detalhado quando nome não é encontrado
-                if not nome_valor or nome_valor == "" or nome_valor.startswith("Cliente "):
-                    print(f"\n{'='*60}")
-                    print(f"AVISO: Nome não encontrado para instalação {row.get(cols_map.get('inst'))}")
-                    print(f"  Coluna mapeada: {nome_col}")
-                    print(f"  Valor bruto: {row.get(nome_col) if nome_col else 'N/A'}")
-                    print(f"  Fonte usada: {fonte_nome}")
-                    print(f"  Todas as colunas disponíveis: {list(df.columns)}")
-                    print(f"  Valores da linha completa:")
-                    for col in df.columns:
-                        val = row.get(col)
-                        if not pd.isna(val) and str(val).strip():
-                            print(f"    {col}: {val}")
-                    print(f"{'='*60}\n")
-                
+                        print(f"  ⚠ Usando instalação como nome (FALLBACK): {nome_valor}")
+
                 # Monta objeto final
                 cliente = {
                     "nome": nome_valor if nome_valor else "Nome não disponível",
                     "documento": safe_str(row.get(cols_map.get('doc'))),
-                    "instalacao": safe_str(row.get(cols_map.get('inst'))),
+                    "instalacao": safe_str(row.get(col_instalacao_detalhe)), # Usamos a coluna UC mapeada
                     "endereco": endereco_completo,
                     "num_conta": safe_str(row.get(cols_map.get('num_conta'))),
                     "economiaTotal": metrics['economiaMes'], 
@@ -203,7 +297,7 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                 warnings.append({
                     "type": "error", 
                     "severity": "error",
-                    "message": f"Erro na linha {idx}: {str(ex)}",
+                    "message": f"Erro na linha {idx} (UC: {row.get(col_instalacao_detalhe)}): {str(ex)}",
                     "details": str(row.to_dict())
                 })
 
