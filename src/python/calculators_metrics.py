@@ -8,8 +8,10 @@ from datetime import datetime
 # Constantes de Fallback e Ambientais
 CO2_PER_KWH = 0.07
 TREES_PER_TON_CO2 = 8
-FALLBACK_TARIFA_DIST = 0.92  # Tarifa padrão de consumo (Fallback)
-FALLBACK_TARIFA_COMP_EV = 0.72 # Tarifa padrão EGS (Fallback)
+# Valores médios 2025 baseados em principais distribuidoras
+FALLBACK_TARIFA_DIST = 0.85  # Média nacional 2025
+FALLBACK_TARIFA_COMP_EV = 0.75  # Tarifa típica EGS
+FALLBACK_FIO_B_PERCENTUAL = 0.28  # 28% da tarifa total
 
 # Percentuais do Fio B por ano (Resolução Normativa ANEEL)
 ANO_ATUAL = 2025
