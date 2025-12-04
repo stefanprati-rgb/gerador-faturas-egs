@@ -1,3 +1,4 @@
+// src/core/pdfGenerator.js
 /**
  * Módulo de geração de PDFs
  */
@@ -37,9 +38,12 @@ class PDFGenerator {
         // Preencher template
         await this.fillTemplate(client, mesReferencia);
 
-        // Gerar nome do arquivo
-        const nomeClean = sanitizeFilename(client.nome.split(' ')[0]);
-        const filename = `Fatura_${client.instalacao}_${nomeClean}.pdf`;
+        // Gerar nome do arquivo de forma defensiva para evitar crash por nome/instalacao nulo
+        // [CORREÇÃO APLICADA] Tratamento defensivo de null para nome e instalação.
+        const nomeBase = (client.nome || 'Cliente').split(' ')[0];
+        const instalacaoBase = client.instalacao || 'Fatura';
+        const nomeClean = sanitizeFilename(nomeBase);
+        const filename = `Fatura_${instalacaoBase}_${nomeClean}.pdf`;
 
         // Configurações do html2pdf
         const opt = {
@@ -92,7 +96,8 @@ class PDFGenerator {
         // Helpers para segurança (evita erro se elemento não existir no template novo)
         const setText = (id, text) => {
             const el = document.getElementById(id);
-            if (el) el.textContent = text;
+            // [CORREÇÃO APLICADA] Defensiva: Garante que o texto é uma string (ou fallback)
+            if (el) el.textContent = String(text ?? '');
         };
         const setHTML = (id, html) => {
             const el = document.getElementById(id);
