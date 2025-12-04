@@ -32,14 +32,61 @@ COLUMNS_MAP = {
 
 # _norm function is imported from utils_normalizers.py via global execution
 
+def _diagnosticar_colunas(df: pd.DataFrame) -> str:
+    """Retorna diagnóstico das colunas disponíveis para debugging."""
+    colunas = list(df.columns)
+    colunas_mostrar = colunas[:10]
+    resultado = f"Colunas disponíveis ({len(colunas)} total): {', '.join(colunas_mostrar)}"
+    if len(colunas) > 10:
+        resultado += f"... (+{len(colunas)-10} mais)"
+    return resultado
+
 def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
-    """Localiza a coluna de Instalação (Chave Primária)."""
-    termos_uc = [r'instala.ao', r'instalaçao', r'instalacao', r'uc', r'codigo']
-    colunas_df_norm = {col: _norm(col) for col in df.columns}
-    for termo in termos_uc:
-        for col_original, col_norm in colunas_df_norm.items():
-            if re.search(termo, col_norm):
+    """
+    Localiza a coluna de Instalação (Chave Primária) com busca resiliente em 3 níveis.
+    
+    Nível 1: Match exato normalizado
+    Nível 2: Match parcial (substring)
+    Nível 3: Fallback para padrões comuns
+    """
+    # Nível 1: Tentativa de match exato (normalizado)
+    termos_exatos = [
+        "INSTALACAO", "INSTALAÇÃO", "Nº INSTALACAO", 
+        "N INSTALACAO", "UC", "CODIGO", "COD INSTALACAO"
+    ]
+    
+    colunas_map = {_norm(col): col for col in df.columns}
+    
+    for termo in termos_exatos:
+        termo_norm = _norm(termo)
+        if termo_norm in colunas_map:
+            col_encontrada = colunas_map[termo_norm]
+            print(f"✓ Coluna UC encontrada (Nível 1 - Match Exato): '{col_encontrada}'")
+            return col_encontrada
+    
+    # Nível 2: Tentativa de match parcial (substring)
+    termos_parciais = ["INSTAL", "UC", "CODIGO", "COD"]
+    
+    for termo in termos_parciais:
+        termo_norm = _norm(termo)
+        for col_norm, col_original in colunas_map.items():
+            if termo_norm in col_norm:
+                print(f"✓ Coluna UC encontrada (Nível 2 - Match Parcial): '{col_original}' (contém '{termo}')")
                 return col_original
+    
+    # Nível 3: Fallback - procura por colunas que parecem IDs numéricos
+    padroes_id = ["ID", "NUM", "NUMERO", "COD", "CODIGO"]
+    
+    for padrao in padroes_id:
+        padrao_norm = _norm(padrao)
+        for col_norm, col_original in colunas_map.items():
+            if padrao_norm in col_norm and len(col_norm) <= 15:
+                print(f"⚠ Coluna UC encontrada (Nível 3 - Fallback): '{col_original}' (padrão ID)")
+                return col_original
+    
+    # Falha total
+    print(f"✗ ERRO: Coluna de Instalação não encontrada após busca em 3 níveis")
+    print(f"  {_diagnosticar_colunas(df)}")
     return None
 
 def _mapear_coluna_nome(df: pd.DataFrame) -> Optional[str]:
@@ -93,7 +140,12 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         col_instalacao_detalhe = _mapear_coluna_uc(df)
         
         if not col_instalacao_detalhe:
-            return json.dumps({"error": "Coluna de Instalação não identificada no detalhe."})
+            diagnostico = _diagnosticar_colunas(df)
+            return json.dumps({
+                "error": "Coluna de Instalação não identificada no detalhe.",
+                "details": diagnostico,
+                "suggestion": "Verifique se o arquivo contém uma coluna chamada 'Instalação', 'INSTALACAO', 'UC' ou similar."
+            })
 
         # 4. CARREGAMENTO E MAPEAMENTO (Lógica Solicitada)
         # Carrega base de referência para memória
