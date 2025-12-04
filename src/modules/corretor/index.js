@@ -1,3 +1,4 @@
+// src/modules/corretor/index.js
 import stateManager from '../../core/StateManager.js';
 import { FileStatus } from '../../components/FileStatus.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
@@ -278,6 +279,7 @@ function openEditModal(instalacao) {
 
   currentEditingClient = JSON.parse(JSON.stringify(client));
 
+  // Inicializa _editor se for a primeira vez que o cliente é editado
   if (!currentEditingClient._editor) {
     currentEditingClient = recalculateInvoice(currentEditingClient);
   }
@@ -333,7 +335,7 @@ async function handleSave() {
   const updatedData = state.processedData.map(c =>
     c.instalacao === finalClientData.instalacao ? finalClientData : c
   );
-  stateManager.setProcessedData(updatedData); // Isso vai disparar updateCorretorUI e atualizar a lista
+  stateManager.setProcessedData({ data: updatedData, warnings: state.validationWarnings }); // Isso vai disparar updateCorretorUI e atualizar a lista
 
   const saveBtn = document.getElementById('save-edit-btn');
   if (saveBtn) {
@@ -351,6 +353,7 @@ async function handleSave() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    a.remove();
 
     notification.success('Fatura corrigida e PDF gerado!');
     closeModal();
@@ -366,24 +369,26 @@ async function handleSave() {
   }
 }
 
-// Função de recálculo (Mantida idêntica para consistência lógica)
+// Função de recálculo (Refatorada para consistência com o novo Python)
 function recalculateInvoice(client) {
   const d = { ...client };
 
   if (!d._editor) {
-    // Tenta recuperar valores originais se disponíveis, senão usa os atuais como base
-    const raw = d._raw || {};
+    // Valores de input do Pyodide (vêm direto do cliente, que é o resultado do Pyodide)
     const consumo_total_val = d.dist_consumo_qtd * d.dist_consumo_tar;
     const comp_total_val_dist = d.det_credito_qtd * d.dist_comp_tar;
 
-    // Tenta calcular o 'outros' original reverso
-    const dist_outros_inicial = d.dist_outros || Math.max(0, d.dist_total - (consumo_total_val - comp_total_val_dist));
+    // Tentativa de calcular o 'Outros' reverso para inicializar o editor
+    // dist_total = consumo_total_val - comp_total_val_dist + dist_outros_inicial
+    const dist_outros_inicial = parseFloat((d.dist_total - (consumo_total_val + d.dist_comp_total)).toFixed(2));
 
     d._editor = {
+      // Usa os valores brutos processados pelo Pyodide como ponto de partida
       comp_qtd: d.det_credito_qtd || 0,
       tarifa_comp_ev: d.det_credito_tar || 0,
-      boleto_ev: 0, // Assume 0 se não tivermos a info original, usuário ajusta se precisar
-      dist_outros: parseFloat(dist_outros_inicial.toFixed(2))
+      // Boleto fixo se não tem tarifa EGS (Pyodide usou valor fixo)
+      boleto_ev: (d.det_credito_tar === 0 && d.totalPagar > 0) ? d.totalPagar : 0,
+      dist_outros: d.dist_outros || dist_outros_inicial
     };
   }
 
@@ -394,13 +399,13 @@ function recalculateInvoice(client) {
   const tarifa_cons = d.dist_consumo_tar;
   const tarifa_comp_dist = d.dist_comp_tar;
 
-  let det_credito_total, det_credito_tar;
+  let det_credito_total, det_credito_tar_recalc;
   if (editor.boleto_ev > 0) {
     det_credito_total = editor.boleto_ev;
-    det_credito_tar = (comp_qtd > 0) ? editor.boleto_ev / comp_qtd : 0;
+    det_credito_tar_recalc = (comp_qtd > 0) ? editor.boleto_ev / comp_qtd : 0;
   } else {
     det_credito_total = comp_qtd * editor.tarifa_comp_ev;
-    det_credito_tar = editor.tarifa_comp_ev;
+    det_credito_tar_recalc = editor.tarifa_comp_ev;
   }
 
   const consumo_total_val = consumo_qtd * tarifa_cons;
@@ -421,7 +426,7 @@ function recalculateInvoice(client) {
     co2Evitado: co2_kg,
     arvoresEquivalentes: arvores,
     det_credito_qtd: comp_qtd,
-    det_credito_tar: det_credito_tar,
+    det_credito_tar: det_credito_tar_recalc, // Tarifa recalculada do editor
     det_credito_total: det_credito_total,
     dist_outros: editor.dist_outros,
     dist_total: dist_total,
