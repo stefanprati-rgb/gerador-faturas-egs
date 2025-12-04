@@ -5,9 +5,9 @@ from datetime import datetime
 
 # Importa as novas dependências
 # Nota: As funções são importadas, mas o Pyodide as executará no mesmo escopo, garantindo o funcionamento.
-from .utils_normalizers import to_num, safe_str, safe_parse_date
-from .excel_utils import pick_col, find_sheet_and_header
-from .calculators_metrics import compute_metrics
+# from .utils_normalizers import to_num, safe_str, safe_parse_date # REMOVIDO para evitar ImportError no Pyodide
+# from .excel_utils import pick_col, find_sheet_and_header # REMOVIDO
+# from .calculators_metrics import compute_metrics # REMOVIDO
 
 # Definição das Colunas (Centralizada para fácil manutenção de mapeamento)
 COLUMNS_MAP = {
@@ -32,7 +32,7 @@ COLUMNS_MAP = {
 def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento_str):
     """
     Função principal de orquestração.
-    Chama as funções modularizadas para: 1. Ler Excel, 2. Mapear, 3. Filtrar, 4. Calcular.
+    Chama as funções modularizadas para: 1. Leer Excel, 2. Mapear, 3. Filtrar, 4. Calcular.
     """
     try:
         # 1. Carregar Excel
@@ -40,10 +40,12 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         
         # 2. Encontrar aba/cabeçalho
         core_keys = ["REF", "Instalação", "CRÉD. CONSUMIDO_FP"]
-        aba, header_idx = find_sheet_and_header(xls, core_keys, prefer_name="Detalhe")
+        # Assumes find_sheet_and_header is global
+        aba, header_idx = find_sheet_and_header(xls, core_keys, prefer_name="Detalhe") 
         
         if not aba:
-             aba, header_idx = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
+            # Assumes find_sheet_and_header is global
+            aba, header_idx = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
         
         if not aba:
             return json.dumps({"error": "Não foi possível identificar a estrutura da planilha. Verifique os cabeçalhos."})
@@ -52,7 +54,8 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         df.columns = [str(c).strip() for c in df.columns]
 
         # 3. Mapear colunas
-        cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()}
+        # Assumes pick_col is global
+        cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()} 
         
         if not cols_map['inst']:
             return json.dumps({"error": "Coluna de Instalação/UC não encontrada."})
@@ -65,7 +68,8 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                 date_input += '-01'
             
             mes_ref_dt = datetime.strptime(date_input, '%Y-%m-%d')
-            df['__ref_dt'] = df[cols_map['ref']].apply(safe_parse_date)
+            # Assumes safe_parse_date is global
+            df['__ref_dt'] = df[cols_map['ref']].apply(safe_parse_date) 
             
             df_mes = df[
                 (df['__ref_dt'].dt.year == mes_ref_dt.year) & 
@@ -78,7 +82,8 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         # 5. Filtro de Valor Mínimo (R$ 5,00)
         col_val = cols_map.get('boleto_ev')
         if col_val:
-            df_mes = df_mes[df_mes[col_val].apply(to_num) >= 5].copy()
+            # Assumes to_num is global
+            df_mes = df_mes[df_mes[col_val].apply(to_num) >= 5].copy() 
         
         # 6. Processamento e Cálculo
         clientes = []
@@ -86,20 +91,23 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         
         for idx, row in df_mes.iterrows():
             try:
-                metrics = compute_metrics(row, cols_map, vencimento_str)
+                # Assumes compute_metrics is global
+                metrics = compute_metrics(row, cols_map, vencimento_str) 
                 
                 # Monta endereço de forma segura
                 ends = []
                 for k in ['endereco', 'bairro', 'cidade']:
                     col_name = cols_map.get(k)
                     if col_name:
-                        val = safe_str(row.get(col_name))
+                        # Assumes safe_str is global
+                        val = safe_str(row.get(col_name)) 
                         if val: ends.append(val)
                 endereco_completo = " - ".join(ends) or "Endereço não informado"
                 
                 # Monta objeto final
                 cliente = {
-                    "nome": safe_str(row.get(cols_map.get('nome')), "Nome não disponível"),
+                    # Assumes safe_str is global
+                    "nome": safe_str(row.get(cols_map.get('nome')), "Nome não disponível"), 
                     "documento": safe_str(row.get(cols_map.get('doc'))),
                     "instalacao": safe_str(row.get(cols_map.get('inst'))),
                     "endereco": endereco_completo,
