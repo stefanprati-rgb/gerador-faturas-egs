@@ -1,7 +1,11 @@
 import pandas as pd
 import io, json
 import traceback
+import warnings as python_warnings
 from datetime import datetime
+
+# Suprime warnings do openpyxl sobre Data Validation
+python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 # Importa as novas dependências
 # Nota: As funções são importadas, mas o Pyodide as executará no mesmo escopo, garantindo o funcionamento.
@@ -58,6 +62,14 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         # Assumes pick_col is global
         cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()} 
         
+        # DEBUG: Log das colunas mapeadas e disponíveis
+        print("=== DEBUG: Mapeamento de Colunas ===")
+        print(f"Colunas disponíveis no DataFrame: {list(df.columns)}")
+        print(f"Mapeamento encontrado:")
+        for key, col_name in cols_map.items():
+            print(f"  {key}: {col_name}")
+        print("=" * 40)
+        
         if not cols_map['inst']:
             return json.dumps({"error": "Coluna de Instalação/UC não encontrada."})
 
@@ -105,10 +117,24 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                         if val: ends.append(val)
                 endereco_completo = " - ".join(ends) or "Endereço não informado"
                 
+                # Extração robusta do nome do cliente
+                nome_col = cols_map.get('nome')
+                nome_valor = None
+                
+                if nome_col:
+                    nome_valor = safe_str(row.get(nome_col))
+                
+                # DEBUG: Log do processo de extração do nome
+                if not nome_valor or nome_valor == "":
+                    print(f"AVISO: Nome não encontrado para instalação {row.get(cols_map.get('inst'))}")
+                    print(f"  Coluna mapeada: {nome_col}")
+                    print(f"  Valor bruto: {row.get(nome_col) if nome_col else 'N/A'}")
+                    # Mostra apenas as primeiras 5 colunas para não poluir muito o log
+                    print(f"  Primeiras colunas da linha: {dict(list(row.items())[:5])}")
+                
                 # Monta objeto final
                 cliente = {
-                    # Assumes safe_str is global
-                    "nome": safe_str(row.get(cols_map.get('nome')), "Nome não disponível"), 
+                    "nome": nome_valor if nome_valor else "Nome não disponível",
                     "documento": safe_str(row.get(cols_map.get('doc'))),
                     "instalacao": safe_str(row.get(cols_map.get('inst'))),
                     "endereco": endereco_completo,
