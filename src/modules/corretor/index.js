@@ -1,38 +1,25 @@
-/**
- * Módulo Corretor de Faturas - Refatorado com StateManager
- * Agora edita dados diretamente da memória global
- */
-
 import stateManager from '../../core/StateManager.js';
 import { FileStatus } from '../../components/FileStatus.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
-import { formatCurrency, formatNumber, normalizeString } from '../../core/formatters.js';
+import { formatCurrency, normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
 
-// Variável local apenas para cliente em edição
 let currentEditingClient = null;
 let displayedClients = [];
 
-/**
- * Renderiza a interface do corretor
- */
 export async function renderCorretor() {
   return `
     <div class="main-grid">
-      <!-- File Status Global -->
       <div id="corretor-file-status" class="col-span-full hidden"></div>
 
-      <!-- Left Panel: Controles -->
       <div class="left-panel">
         
-        <!-- No Data State -->
         <div id="corretor-no-file" class="panel-card text-center py-8">
-          <i class="fas fa-exclamation-circle text-3xl text-gray-300 mb-2"></i>
+          <i class="fas fa-exclamation-circle text-4xl text-gray-300 mb-2"></i>
           <p class="font-medium text-gray-600">Nenhum dado carregado</p>
           <p class="text-sm text-text-muted mt-2">Vá para a aba <strong>Processador</strong> ou <strong>Gerador</strong> para carregar dados.</p>
         </div>
 
-        <!-- Tools Panel -->
         <div id="corretor-tools" class="panel-card hidden">
           <h2 class="section-title">Filtrar Clientes</h2>
           <div class="relative">
@@ -40,122 +27,109 @@ export async function renderCorretor() {
             <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
           </div>
           
-          <div class="mt-4 pt-4 border-t border-gray-100">
-            <p class="text-xs font-semibold text-gray-500 mb-2 uppercase">Ações Globais</p>
-            <button id="export-json-corretor" class="w-full btn btn-secondary text-sm py-2">
-              <i class="fas fa-file-code mr-2"></i>Exportar Dados (JSON)
+          <div class="mt-6 pt-6 border-t border-gray-100">
+            <p class="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide">Ações Globais</p>
+            <button id="export-json-corretor" class="w-full btn btn-secondary text-sm py-2 justify-start">
+              <i class="fas fa-file-code mr-2 text-gray-500"></i>Exportar Dados (JSON)
             </button>
           </div>
         </div>
 
-        <!-- Edit Panel Placeholder -->
         <div id="edit-panel-placeholder" class="panel-card bg-gray-50 border-dashed text-center py-10 hidden md:block">
-          <i class="fas fa-hand-pointer text-3xl text-gray-300 mb-2"></i>
           <p class="text-gray-400 text-sm">Selecione um cliente na lista à direita para editar</p>
         </div>
       </div>
 
-      <!-- Right Panel: Lista de Clientes -->
       <div class="right-panel">
         <div class="panel-card min-h-[500px]">
           <div class="flex justify-between items-center mb-4">
-            <h2 class="section-title mb-0">Clientes Processados</h2>
-            <span id="client-count-badge" class="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full">0</span>
+            <h2 class="section-title mb-0">Clientes Carregados</h2>
+            <span id="client-count-badge" class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">0</span>
           </div>
 
-          <!-- Lista de Clientes -->
           <div id="clients-list-corretor" class="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-            <div id="empty-state-corretor" class="text-center text-gray-500 py-20 flex flex-col items-center">
-              <div class="bg-gray-50 p-6 rounded-full mb-4">
-                <i class="fas fa-users text-4xl text-gray-300"></i>
-              </div>
-              <p class="font-medium">Nenhum cliente disponível</p>
-              <p class="text-sm mt-1 max-w-xs">Processe dados no Processador ou Gerador primeiro.</p>
             </div>
-          </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal de Edição -->
-    <div id="edit-modal-corretor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
-      <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b border-gray-200">
-          <div class="flex items-center justify-between">
-            <h3 class="text-2xl font-bold">Editar Fatura</h3>
-            <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600 transition-colors">
-              <i class="fas fa-times text-2xl"></i>
-            </button>
+    <div id="edit-modal-corretor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden transition-opacity duration-300">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto transform scale-95 transition-transform duration-300">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+          <div>
+            <h3 class="text-xl font-bold text-gray-900">Editar Fatura</h3>
+            <p id="modal-client-name" class="text-sm text-gray-500 mt-1">Carregando...</p>
           </div>
-          <p id="modal-client-name" class="text-text-muted mt-1"></p>
+          <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
+            <i class="fas fa-times text-xl"></i>
+          </button>
         </div>
 
         <div class="p-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Coluna Esquerda: Inputs -->
-            <div class="space-y-4 p-4 border border-gray-200 rounded-lg">
-              <h4 class="font-semibold text-gray-700 border-b pb-2">Valores Editáveis</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-5">
+              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide border-b pb-2">Parâmetros Editáveis</h4>
               
               <div>
-                <label class="block text-sm font-medium mb-1">Crédito Consumido (kWh)</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Crédito Consumido (kWh)</label>
                 <input type="number" id="edit-comp_qtd" class="input" step="0.01">
               </div>
               
               <div>
-                <label class="block text-sm font-medium mb-1">Tarifa de Referência EGS (R$)</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa EGS (R$)</label>
                 <input type="number" id="edit-tarifa_comp_ev" class="input" step="0.000001">
               </div>
               
               <div>
-                <label class="block text-sm font-medium mb-1">Boleto Fixo (R$)</label>
-                <input type="number" id="edit-boleto_ev" class="input" step="0.01">
-                <p class="text-xs text-gray-500 mt-1">Deixe 0 para usar a tarifa × quantidade</p>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Boleto Fixo (R$)</label>
+                <div class="relative">
+                    <input type="number" id="edit-boleto_ev" class="input pl-8" step="0.01">
+                    <span class="absolute left-3 top-3 text-gray-400 text-sm">R$</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Deixe 0 para calcular (Tarifa × kWh)</p>
               </div>
               
               <div>
-                <label class="block text-sm font-medium mb-1">Outros Custos Distribuidora (R$)</label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Outros Custos Distrib. (R$)</label>
                 <input type="number" id="edit-dist_outros" class="input" step="0.01">
               </div>
             </div>
 
-            <!-- Coluna Direita: Resultados -->
-            <div class="space-y-3 p-4 bg-gray-50 rounded-lg">
-              <h4 class="font-semibold text-gray-700 border-b pb-2">Resultados Recalculados</h4>
+            <div class="bg-gray-50 rounded-xl p-5 border border-gray-100 flex flex-col justify-center space-y-4">
+              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide border-b pb-2 mb-2">Simulação</h4>
               
-              <div class="text-sm flex justify-between">
-                <strong>Contribuição EGS:</strong>
-                <span id="res-total_contribuicao" class="font-semibold text-primary">R$ 0,00</span>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Contribuição EGS</span>
+                <span id="res-total_contribuicao" class="font-medium text-gray-900">R$ 0,00</span>
               </div>
               
-              <div class="text-sm flex justify-between">
-                <strong>Fatura Distribuidora:</strong>
-                <span id="res-total_distribuidora" class="font-semibold">R$ 0,00</span>
+              <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Fatura Distribuidora</span>
+                <span id="res-total_distribuidora" class="font-medium text-gray-900">R$ 0,00</span>
               </div>
               
-              <hr class="my-2">
-              
-              <div class="text-lg font-bold flex justify-between">
-                TOTAL A PAGAR:
-                <span id="res-total_com_gd" class="text-primary">R$ 0,00</span>
+              <div class="pt-3 border-t border-gray-200">
+                <div class="flex justify-between items-end mb-1">
+                  <span class="text-sm font-bold text-gray-900">TOTAL A PAGAR</span>
+                  <span id="res-total_com_gd" class="text-xl font-bold text-apple-blue">R$ 0,00</span>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500">
+                  <span>Sem EGS seria:</span>
+                  <span id="res-total_sem_gd">R$ 0,00</span>
+                </div>
               </div>
               
-              <div class="text-sm text-gray-600 flex justify-between">
-                Sem GD seria:
-                <span id="res-total_sem_gd">R$ 0,00</span>
-              </div>
-              
-              <div class="text-lg font-bold text-green-600 bg-green-100 p-3 rounded-md text-center">
-                ECONOMIA: <span id="res-economia_mes">R$ 0,00</span>
+              <div class="bg-green-50 text-green-700 p-3 rounded-lg flex justify-between items-center font-bold border border-green-100">
+                <span>ECONOMIA</span>
+                <span id="res-economia_mes">R$ 0,00</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="p-6 border-t border-gray-200 flex gap-3">
-          <button id="cancel-edit-btn" class="btn btn-secondary flex-1">
-            <i class="fas fa-times mr-2"></i>Cancelar
-          </button>
-          <button id="save-edit-btn" class="btn btn-primary flex-1">
+        <div class="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-2xl">
+          <button id="cancel-edit-btn" class="btn btn-secondary px-6">Cancelar</button>
+          <button id="save-edit-btn" class="btn btn-primary px-6 shadow-lg hover:shadow-xl">
             <i class="fas fa-save mr-2"></i>Salvar e Gerar PDF
           </button>
         </div>
@@ -164,11 +138,7 @@ export async function renderCorretor() {
   `;
 }
 
-/**
- * Inicializa eventos do módulo corretor
- */
 export function initCorretor() {
-  // Inicializa componente de status global
   new FileStatus('corretor-file-status');
 
   const searchInput = document.getElementById('search-client-corretor');
@@ -177,75 +147,55 @@ export function initCorretor() {
   const cancelEditBtn = document.getElementById('cancel-edit-btn');
   const saveEditBtn = document.getElementById('save-edit-btn');
 
-  // Sincronizar com Estado Global
-  stateManager.subscribe((state) => {
-    updateCorretorUI(state);
-  });
-
-  // Inicializa UI com estado atual
+  stateManager.subscribe((state) => updateCorretorUI(state));
   updateCorretorUI(stateManager.getState());
 
-  // Event Listeners
   searchInput?.addEventListener('input', handleSearch);
   exportBtn?.addEventListener('click', handleExportJSON);
-  closeModalBtn?.addEventListener('click', closeModal);
-  cancelEditBtn?.addEventListener('click', closeModal);
+
+  [closeModalBtn, cancelEditBtn].forEach(btn => btn?.addEventListener('click', closeModal));
   saveEditBtn?.addEventListener('click', handleSave);
 
-  // Atualizar prévia ao editar campos
   ['edit-comp_qtd', 'edit-tarifa_comp_ev', 'edit-boleto_ev', 'edit-dist_outros'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', updatePreview);
+    document.getElementById(id)?.addEventListener('input', updatePreview);
   });
 }
 
-/**
- * Atualiza UI baseado no estado global
- */
 function updateCorretorUI(state) {
+  // PROTEÇÃO CONTRA CRASH
+  const noFileEl = document.getElementById('corretor-no-file');
+  if (!noFileEl) return;
+
   const hasData = state.processedData && state.processedData.length > 0;
 
-  const noFileEl = document.getElementById('corretor-no-file');
   const toolsEl = document.getElementById('corretor-tools');
   const statusEl = document.getElementById('corretor-file-status');
   const placeholderEl = document.getElementById('edit-panel-placeholder');
   const countBadge = document.getElementById('client-count-badge');
 
-  // Status sempre visível no topo
   if (statusEl) statusEl.classList.remove('hidden');
 
   if (hasData) {
-    // Mostrar ferramentas
-    noFileEl?.classList.add('hidden');
+    noFileEl.classList.add('hidden');
     toolsEl?.classList.remove('hidden');
     placeholderEl?.classList.remove('hidden');
 
-    // Atualizar contador
-    if (countBadge) {
-      countBadge.textContent = state.processedData.length;
-    }
+    if (countBadge) countBadge.textContent = state.processedData.length;
 
-    // Renderiza lista usando os dados da memória
     displayedClients = state.processedData;
     renderCorretorList(state.processedData);
   } else {
-    // Mostrar estado vazio
-    noFileEl?.classList.remove('hidden');
+    noFileEl.classList.remove('hidden');
     toolsEl?.classList.add('hidden');
     placeholderEl?.classList.add('hidden');
 
-    if (countBadge) {
-      countBadge.textContent = '0';
-    }
+    if (countBadge) countBadge.textContent = '0';
 
     const listContainer = document.getElementById('clients-list-corretor');
     if (listContainer) listContainer.innerHTML = '';
   }
 }
 
-/**
- * Renderiza lista de clientes
- */
 function renderCorretorList(clients) {
   const container = document.getElementById('clients-list-corretor');
   if (!container) return;
@@ -264,21 +214,20 @@ function renderCorretorList(clients) {
 
   clients.forEach(client => {
     const div = document.createElement('div');
-    div.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer';
+    div.className = 'flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer group';
     div.innerHTML = `
       <div class="flex-1">
-        <p class="font-semibold text-gray-900">${client.nome}</p>
-        <p class="text-sm text-gray-600">Instalação: ${client.instalacao}</p>
+        <p class="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">${client.nome}</p>
+        <p class="text-sm text-gray-500">Instalação: <span class="font-mono text-xs">${client.instalacao}</span></p>
         ${client.totalPagar ? `<p class="text-sm text-blue-600 font-medium mt-1">${formatCurrency(client.totalPagar)}</p>` : ''}
       </div>
-      <button class="btn btn-primary edit-client-btn" data-instalacao="${client.instalacao}">
-        <i class="fas fa-edit mr-1"></i>Editar
+      <button class="btn btn-secondary text-xs px-4 py-2 edit-client-btn hover:bg-blue-50 hover:text-blue-600" data-instalacao="${client.instalacao}">
+        <i class="fas fa-edit mr-2"></i>Editar
       </button>
     `;
     container.appendChild(div);
   });
 
-  // Event listeners para botões
   container.querySelectorAll('.edit-client-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -287,9 +236,6 @@ function renderCorretorList(clients) {
   });
 }
 
-/**
- * Busca clientes
- */
 function handleSearch(e) {
   const state = stateManager.getState();
   const query = normalizeString(e.target.value);
@@ -303,16 +249,9 @@ function handleSearch(e) {
   renderCorretorList(filtered);
 }
 
-/**
- * Exporta dados como JSON
- */
 function handleExportJSON() {
   const state = stateManager.getState();
-
-  if (!state.processedData || state.processedData.length === 0) {
-    notification.error('Nenhum dado para exportar');
-    return;
-  }
+  if (!state.processedData || state.processedData.length === 0) return notification.error('Nenhum dado para exportar');
 
   try {
     const json = JSON.stringify(state.processedData, null, 2);
@@ -325,35 +264,24 @@ function handleExportJSON() {
     a.click();
     URL.revokeObjectURL(url);
     a.remove();
-
     notification.success('JSON exportado com sucesso!');
   } catch (error) {
     notification.error('Erro ao exportar JSON');
-    console.error(error);
   }
 }
 
-/**
- * Abre modal de edição
- */
 function openEditModal(instalacao) {
   const state = stateManager.getState();
   const client = state.processedData.find(c => String(c.instalacao) === String(instalacao));
 
-  if (!client) {
-    notification.error('Cliente não encontrado');
-    return;
-  }
+  if (!client) return notification.error('Cliente não encontrado');
 
-  // Cria cópia profunda para edição
   currentEditingClient = JSON.parse(JSON.stringify(client));
 
-  // Garante que _editor existe
   if (!currentEditingClient._editor) {
     currentEditingClient = recalculateInvoice(currentEditingClient);
   }
 
-  // Preenche modal
   document.getElementById('modal-client-name').textContent = `${currentEditingClient.nome} (${currentEditingClient.instalacao})`;
   document.getElementById('edit-comp_qtd').value = currentEditingClient._editor.comp_qtd;
   document.getElementById('edit-tarifa_comp_ev').value = currentEditingClient._editor.tarifa_comp_ev;
@@ -362,20 +290,18 @@ function openEditModal(instalacao) {
 
   updatePreview();
 
-  document.getElementById('edit-modal-corretor')?.classList.remove('hidden');
+  const modal = document.getElementById('edit-modal-corretor');
+  modal.classList.remove('hidden');
+  // Pequeno timeout para permitir transição CSS se houver
+  setTimeout(() => modal.querySelector('div').classList.remove('scale-95'), 10);
 }
 
-/**
- * Fecha modal
- */
 function closeModal() {
-  document.getElementById('edit-modal-corretor')?.classList.add('hidden');
+  const modal = document.getElementById('edit-modal-corretor');
+  modal.classList.add('hidden');
   currentEditingClient = null;
 }
 
-/**
- * Atualiza prévia de cálculos
- */
 function updatePreview() {
   if (!currentEditingClient) return;
 
@@ -395,32 +321,24 @@ function updatePreview() {
   document.getElementById('res-economia_mes').textContent = formatCurrency(recalculated.economiaMes);
 }
 
-/**
- * Salva edição e gera PDF
- */
 async function handleSave() {
   if (!currentEditingClient) return;
 
-  currentEditingClient._editor = {
-    comp_qtd: parseFloat(document.getElementById('edit-comp_qtd')?.value || 0),
-    tarifa_comp_ev: parseFloat(document.getElementById('edit-tarifa_comp_ev')?.value || 0),
-    boleto_ev: parseFloat(document.getElementById('edit-boleto_ev')?.value || 0),
-    dist_outros: parseFloat(document.getElementById('edit-dist_outros')?.value || 0),
-  };
-
+  // Atualiza valores finais
+  updatePreview();
   const finalClientData = recalculateInvoice(currentEditingClient);
 
-  // Atualizar no estado global
+  // Atualiza no State
   const state = stateManager.getState();
   const updatedData = state.processedData.map(c =>
     c.instalacao === finalClientData.instalacao ? finalClientData : c
   );
-  stateManager.setProcessedData(updatedData);
+  stateManager.setProcessedData(updatedData); // Isso vai disparar updateCorretorUI e atualizar a lista
 
   const saveBtn = document.getElementById('save-edit-btn');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<div class="loader !w-4 !h-4 !border-2"></div> Gerando...';
+    saveBtn.innerHTML = '<div class="loader w-4 h-4 border-2 mr-2"></div> Gerando...';
   }
 
   try {
@@ -448,33 +366,34 @@ async function handleSave() {
   }
 }
 
-/**
- * Recalcula fatura com base nos valores editados
- */
+// Função de recálculo (Mantida idêntica para consistência lógica)
 function recalculateInvoice(client) {
   const d = { ...client };
 
-  // Inicializa _editor se não existir
   if (!d._editor) {
+    // Tenta recuperar valores originais se disponíveis, senão usa os atuais como base
+    const raw = d._raw || {};
     const consumo_total_val = d.dist_consumo_qtd * d.dist_consumo_tar;
     const comp_total_val_dist = d.det_credito_qtd * d.dist_comp_tar;
-    const dist_outros_inicial = Math.max(0, d.dist_total - (consumo_total_val - comp_total_val_dist));
+
+    // Tenta calcular o 'outros' original reverso
+    const dist_outros_inicial = d.dist_outros || Math.max(0, d.dist_total - (consumo_total_val - comp_total_val_dist));
 
     d._editor = {
       comp_qtd: d.det_credito_qtd || 0,
       tarifa_comp_ev: d.det_credito_tar || 0,
-      boleto_ev: 0,
+      boleto_ev: 0, // Assume 0 se não tivermos a info original, usuário ajusta se precisar
       dist_outros: parseFloat(dist_outros_inicial.toFixed(2))
     };
   }
 
   const editor = d._editor;
   const comp_qtd = editor.comp_qtd;
+  // Mantemos valores de consumo e tarifas da distribuidora constantes (não editáveis por enquanto)
   const consumo_qtd = d.dist_consumo_qtd;
   const tarifa_cons = d.dist_consumo_tar;
   const tarifa_comp_dist = d.dist_comp_tar;
 
-  // Cálculo da contribuição EGS
   let det_credito_total, det_credito_tar;
   if (editor.boleto_ev > 0) {
     det_credito_total = editor.boleto_ev;
@@ -484,17 +403,14 @@ function recalculateInvoice(client) {
     det_credito_tar = editor.tarifa_comp_ev;
   }
 
-  // Cálculo da distribuidora
   const consumo_total_val = consumo_qtd * tarifa_cons;
   const comp_total_val_dist = comp_qtd * tarifa_comp_dist;
   const dist_total = consumo_total_val - comp_total_val_dist + editor.dist_outros;
 
-  // Economia
   const econ_total_com = dist_total + det_credito_total;
   const econ_total_sem = consumo_total_val + editor.dist_outros;
   const economiaMes = Math.max(0, econ_total_sem - econ_total_com);
 
-  // Impactos ambientais
   const co2_kg = comp_qtd * 0.07;
   const arvores = (co2_kg / 1000.0) * 8;
 
@@ -507,16 +423,10 @@ function recalculateInvoice(client) {
     det_credito_qtd: comp_qtd,
     det_credito_tar: det_credito_tar,
     det_credito_total: det_credito_total,
-    dist_consumo_qtd: consumo_qtd,
-    dist_consumo_tar: tarifa_cons,
-    dist_consumo_total: consumo_total_val,
-    dist_comp_qtd: comp_qtd,
-    dist_comp_tar: tarifa_comp_dist,
-    dist_comp_total: -comp_total_val_dist,
     dist_outros: editor.dist_outros,
     dist_total: dist_total,
     econ_total_sem: econ_total_sem,
     econ_total_com: econ_total_com,
-    economiaTotal: d.economiaTotal || economiaMes
+    // Nota: economiaTotal histórica não é recalculada, apenas a do mês
   };
 }
