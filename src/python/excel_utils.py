@@ -1,7 +1,7 @@
 import pandas as pd
 import re
 # Importa a função de normalização
-from .utils_normalizers import _norm 
+# from .utils_normalizers import _norm 
 
 # =================================================================
 # FUNÇÕES DE UTILIDADE DE EXCEL (src/python/excel_utils.py)
@@ -9,7 +9,8 @@ from .utils_normalizers import _norm
 
 def pick_col(df: pd.DataFrame, *alternativas) -> str:
     """Encontra coluna no DataFrame usando chaves normalizadas."""
-    cols_norm = {_norm(c): c for c in df.columns}
+    # Assume _norm é global após execução de utils_normalizers.py
+    cols_norm = {_norm(c): c for c in df.columns} 
     
     # 1. Tentativa Exata
     for alt in alternativas:
