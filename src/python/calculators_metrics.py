@@ -47,6 +47,59 @@ def compute_metrics(row, cols_map, vencimento_iso):
     tarifa_egs = get('tarifa_comp_ev') # Tarifa cobrada pelo EGS
     if tarifa_egs <= 0: tarifa_egs = FALLBACK_TARIFA_COMP_EV
 
+    # --- VALIDAÇÕES DE DADOS ---
+    validations = []
+    
+    # Validação 1: Tarifas suspeitas (< R$ 0,50 ou > R$ 1,50)
+    if 0 < tarifa_cons < 0.50 or tarifa_cons > 1.50:
+        validations.append({
+            "type": "warning",
+            "severity": "warning",
+            "title": "Tarifa de Consumo Suspeita",
+            "message": f"Tarifa de consumo fora do padrão: R$ {tarifa_cons:.4f}/kWh",
+            "details": "Valores esperados entre R$ 0,50 e R$ 1,50. Verifique se o valor está correto."
+        })
+    
+    if 0 < tarifa_comp < 0.50 or tarifa_comp > 1.50:
+        validations.append({
+            "type": "warning",
+            "severity": "warning",
+            "title": "Tarifa de Compensação Suspeita",
+            "message": f"Tarifa de compensação fora do padrão: R$ {tarifa_comp:.4f}/kWh",
+            "details": "Valores esperados entre R$ 0,50 e R$ 1,50. Verifique se o valor está correto."
+        })
+    
+    # Validação 2: Fio B atípico (> 40% da tarifa)
+    if tarifa_cons > 0:
+        percentual_fio_b = (tarifa_comp / tarifa_cons) * 100
+        if percentual_fio_b > 40:
+            validations.append({
+                "type": "warning",
+                "severity": "warning",
+                "title": "Fio B Atípico",
+                "message": f"Fio B representa {percentual_fio_b:.1f}% da tarifa (acima de 40%)",
+                "details": f"Tarifa compensação: R$ {tarifa_comp:.4f} / Tarifa consumo: R$ {tarifa_cons:.4f}"
+            })
+    
+    # Validação 3: Valores negativos críticos
+    if consumo_qtd < 0:
+        validations.append({
+            "type": "error",
+            "severity": "error",
+            "title": "Consumo Negativo",
+            "message": f"Consumo não pode ser negativo: {consumo_qtd} kWh",
+            "details": "Erro crítico nos dados. Verifique a planilha de origem."
+        })
+    
+    if comp_qtd < 0:
+        validations.append({
+            "type": "error",
+            "severity": "error",
+            "title": "Crédito Compensado Negativo",
+            "message": f"Crédito compensado não pode ser negativo: {comp_qtd} kWh",
+            "details": "Erro crítico nos dados. Verifique a planilha de origem."
+        })
+
     # --- 2. Cálculos da Distribuidora ---
     valor_consumo_sem_gd = consumo_qtd * tarifa_cons
     valor_credito_abatido = comp_qtd * tarifa_comp
@@ -83,7 +136,7 @@ def compute_metrics(row, cols_map, vencimento_iso):
     # --- 5. Retorno Formatado ---
     def r(x, d=2): return round(float(x or 0), d)
 
-    return {
+    result = {
         # Distribuidora
         "dist_consumo_qtd": r(consumo_qtd), "dist_consumo_tar": r(tarifa_cons, 4), "dist_consumo_total": r(valor_consumo_sem_gd),
         "dist_comp_qtd": r(comp_qtd), "dist_comp_tar": r(tarifa_comp, 4), "dist_comp_total": r(-valor_credito_abatido),
@@ -96,3 +149,9 @@ def compute_metrics(row, cols_map, vencimento_iso):
         "vencimento_iso": vencimento_iso,
         "emissao_iso": datetime.now().strftime('%Y-%m-%d')
     }
+    
+    # Adiciona validações ao resultado se houver
+    if validations:
+        result["validations"] = validations
+    
+    return result
