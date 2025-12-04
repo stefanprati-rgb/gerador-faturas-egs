@@ -4,6 +4,7 @@ import traceback
 import warnings as python_warnings
 from datetime import datetime
 import re # Adicionado para mapeamento flexível de colunas
+from typing import Optional # FIX: Importação necessária para tipagem
 
 # Suprime warnings do openpyxl sobre Data Validation
 python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
