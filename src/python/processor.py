@@ -14,6 +14,15 @@ def _norm(s: str) -> str:
     s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
     return re.sub(r"\s+", "", s).strip().upper() # Removendo todos os espaços para matching mais agressivo
 
+def safe_str(val, default="") -> str:
+    """Converte valor para string de forma segura, tratando NaN/None como string vazia ou default."""
+    if val is None or pd.isna(val):
+        return default
+    s = str(val).strip()
+    if s.lower() == 'nan':
+        return default
+    return s if s else default
+
 def to_num(x) -> float:
     """Converte valores monetários/numéricos PT-BR para float."""
     if pd.isna(x): return 0.0
@@ -298,19 +307,22 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
             try:
                 metrics = compute_metrics(row, cols_map, vencimento_str)
                 
-                # Monta endereço
+                # Monta endereço de forma segura
                 ends = []
                 for k in ['endereco', 'bairro', 'cidade']:
-                    if cols_map.get(k): ends.append(str(row.get(cols_map[k], '')).strip())
-                endereco_completo = " - ".join(filter(None, ends)) or "Endereço não informado"
+                    col_name = cols_map.get(k)
+                    if col_name:
+                        val = safe_str(row.get(col_name))
+                        if val: ends.append(val)
+                endereco_completo = " - ".join(ends) or "Endereço não informado"
                 
-                # Dados básicos
+                # Dados básicos com tratamento safe_str
                 cliente = {
-                    "nome": str(row.get(cols_map.get('nome'), "Nome não disponível")).strip(),  # Garante fallback
-                    "documento": str(row.get(cols_map['doc'], "")).strip(),
-                    "instalacao": str(row.get(cols_map['inst'], "")).strip(),
+                    "nome": safe_str(row.get(cols_map.get('nome')), "Nome não disponível"),
+                    "documento": safe_str(row.get(cols_map.get('doc'))),
+                    "instalacao": safe_str(row.get(cols_map.get('inst'))),
                     "endereco": endereco_completo,
-                    "num_conta": str(row.get(cols_map['num_conta'], "")).strip(),
+                    "num_conta": safe_str(row.get(cols_map.get('num_conta'))),
                     "economiaTotal": metrics['economiaMes'], # Fallback temporário: Acumulado = Mês (se não tiver histórico)
                 }
                 
