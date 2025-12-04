@@ -237,11 +237,13 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         }
 
         # Tenta encontrar aba com colunas cruciais
-        aba, header_idx = find_sheet_and_header(xls, col_defs['inst'] + col_defs['consumo_qtd'], prefer_name="Detalhe")
+        # CORREÇÃO: Usar um conjunto mínimo de chaves para identificar a linha do cabeçalho
+        core_keys = ["REF", "Instalação", "CRÉD. CONSUMIDO_FP"]
+        aba, header_idx = find_sheet_and_header(xls, core_keys, prefer_name="Detalhe")
         
         if not aba:
-             # Tenta fallback para aba 'Infos Clientes' ou similar
-             aba, header_idx = find_sheet_and_header(xls, col_defs['inst'], prefer_name="Infos")
+             # Tenta um fallback mais simples, procurando apenas por REF e Instalação
+             aba, header_idx = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
         
         if not aba:
             return json.dumps({"error": "Não foi possível identificar a estrutura da planilha. Verifique os cabeçalhos."})
