@@ -4,12 +4,25 @@ import { FileStatus } from '../../components/FileStatus.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
 import { formatCurrency, normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
+// Importação dos módulos modularizados
+import { getEditModalTemplate } from './templates/edit-modal-template.js';
+import { recalculateInvoice } from './services/InvoiceRecalculator.js';
 
 let currentEditingClient = null;
 let displayedClients = [];
 
+/**
+ * Renderiza a interface principal do Corretor, incluindo o template da modal.
+ */
 export async function renderCorretor() {
-  return `
+  // O template da modal é injetado no final do corpo da página principal (index.html)
+  // O router irá injetar a modal no DOM, então a função principal só precisa do conteúdo da aba.
+
+  // No entanto, como o template da modal é grande e está na função render, 
+  // precisamos garantir que ele seja retornado para ser injetado.
+
+  // O conteúdo da aba:
+  const content = `
     <div class="main-grid">
       <div id="corretor-file-status" class="col-span-full hidden"></div>
 
@@ -53,93 +66,22 @@ export async function renderCorretor() {
         </div>
       </div>
     </div>
-
-    <div id="edit-modal-corretor" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden transition-opacity duration-300">
-      <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto transform scale-95 transition-transform duration-300">
-        <div class="p-6 border-b border-gray-100 flex justify-between items-center">
-          <div>
-            <h3 class="text-xl font-bold text-gray-900">Editar Fatura</h3>
-            <p id="modal-client-name" class="text-sm text-gray-500 mt-1">Carregando...</p>
-          </div>
-          <button id="close-modal-btn" class="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
-            <i class="fas fa-times text-xl"></i>
-          </button>
-        </div>
-
-        <div class="p-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="space-y-5">
-              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide border-b pb-2">Parâmetros Editáveis</h4>
-              
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Crédito Consumido (kWh)</label>
-                <input type="number" id="edit-comp_qtd" class="input" step="0.01">
-              </div>
-              
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tarifa EGS (R$)</label>
-                <input type="number" id="edit-tarifa_comp_ev" class="input" step="0.000001">
-              </div>
-              
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Boleto Fixo (R$)</label>
-                <div class="relative">
-                    <input type="number" id="edit-boleto_ev" class="input pl-8" step="0.01">
-                    <span class="absolute left-3 top-3 text-gray-400 text-sm">R$</span>
-                </div>
-                <p class="text-xs text-gray-500 mt-1">Deixe 0 para calcular (Tarifa × kWh)</p>
-              </div>
-              
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Outros Custos Distrib. (R$)</label>
-                <input type="number" id="edit-dist_outros" class="input" step="0.01">
-              </div>
-            </div>
-
-            <div class="bg-gray-50 rounded-xl p-5 border border-gray-100 flex flex-col justify-center space-y-4">
-              <h4 class="text-sm font-semibold text-gray-900 uppercase tracking-wide border-b pb-2 mb-2">Simulação</h4>
-              
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-600">Contribuição EGS</span>
-                <span id="res-total_contribuicao" class="font-medium text-gray-900">R$ 0,00</span>
-              </div>
-              
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-600">Fatura Distribuidora</span>
-                <span id="res-total_distribuidora" class="font-medium text-gray-900">R$ 0,00</span>
-              </div>
-              
-              <div class="pt-3 border-t border-gray-200">
-                <div class="flex justify-between items-end mb-1">
-                  <span class="text-sm font-bold text-gray-900">TOTAL A PAGAR</span>
-                  <span id="res-total_com_gd" class="text-xl font-bold text-apple-blue">R$ 0,00</span>
-                </div>
-                <div class="flex justify-between text-xs text-gray-500">
-                  <span>Sem EGS seria:</span>
-                  <span id="res-total_sem_gd">R$ 0,00</span>
-                </div>
-              </div>
-              
-              <div class="bg-green-50 text-green-700 p-3 rounded-lg flex justify-between items-center font-bold border border-green-100">
-                <span>ECONOMIA</span>
-                <span id="res-economia_mes">R$ 0,00</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-2xl">
-          <button id="cancel-edit-btn" class="btn btn-secondary px-6">Cancelar</button>
-          <button id="save-edit-btn" class="btn btn-primary px-6 shadow-lg hover:shadow-xl">
-            <i class="fas fa-save mr-2"></i>Salvar e Gerar PDF
-          </button>
-        </div>
-      </div>
-    </div>
   `;
+
+  // A modal é retornada aqui para ser injetada no final do main-content
+  return content + getEditModalTemplate();
 }
 
 export function initCorretor() {
+  // Deve-se garantir que a modal esteja no DOM antes de inicializar os event listeners
+  const modalContainer = document.getElementById('edit-modal-corretor');
+  if (!modalContainer) {
+    // Injeta a modal no body se ainda não estiver lá (fallback/garantia)
+    const modalWrapper = document.createElement('div');
+    modalWrapper.innerHTML = getEditModalTemplate();
+    document.body.appendChild(modalWrapper.firstElementChild);
+  }
+
   new FileStatus('corretor-file-status');
 
   const searchInput = document.getElementById('search-client-corretor');
@@ -279,7 +221,6 @@ function openEditModal(instalacao) {
 
   currentEditingClient = JSON.parse(JSON.stringify(client));
 
-  // Inicializa _editor se for a primeira vez que o cliente é editado
   if (!currentEditingClient._editor) {
     currentEditingClient = recalculateInvoice(currentEditingClient);
   }
@@ -367,71 +308,4 @@ async function handleSave() {
       saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Salvar e Gerar PDF';
     }
   }
-}
-
-// Função de recálculo (Refatorada para consistência com o novo Python)
-function recalculateInvoice(client) {
-  const d = { ...client };
-
-  if (!d._editor) {
-    // Valores de input do Pyodide (vêm direto do cliente, que é o resultado do Pyodide)
-    const consumo_total_val = d.dist_consumo_qtd * d.dist_consumo_tar;
-    const comp_total_val_dist = d.det_credito_qtd * d.dist_comp_tar;
-
-    // Tentativa de calcular o 'Outros' reverso para inicializar o editor
-    // dist_total = consumo_total_val - comp_total_val_dist + dist_outros_inicial
-    const dist_outros_inicial = parseFloat((d.dist_total - (consumo_total_val + d.dist_comp_total)).toFixed(2));
-
-    d._editor = {
-      // Usa os valores brutos processados pelo Pyodide como ponto de partida
-      comp_qtd: d.det_credito_qtd || 0,
-      tarifa_comp_ev: d.det_credito_tar || 0,
-      // Boleto fixo se não tem tarifa EGS (Pyodide usou valor fixo)
-      boleto_ev: (d.det_credito_tar === 0 && d.totalPagar > 0) ? d.totalPagar : 0,
-      dist_outros: d.dist_outros || dist_outros_inicial
-    };
-  }
-
-  const editor = d._editor;
-  const comp_qtd = editor.comp_qtd;
-  // Mantemos valores de consumo e tarifas da distribuidora constantes (não editáveis por enquanto)
-  const consumo_qtd = d.dist_consumo_qtd;
-  const tarifa_cons = d.dist_consumo_tar;
-  const tarifa_comp_dist = d.dist_comp_tar;
-
-  let det_credito_total, det_credito_tar_recalc;
-  if (editor.boleto_ev > 0) {
-    det_credito_total = editor.boleto_ev;
-    det_credito_tar_recalc = (comp_qtd > 0) ? editor.boleto_ev / comp_qtd : 0;
-  } else {
-    det_credito_total = comp_qtd * editor.tarifa_comp_ev;
-    det_credito_tar_recalc = editor.tarifa_comp_ev;
-  }
-
-  const consumo_total_val = consumo_qtd * tarifa_cons;
-  const comp_total_val_dist = comp_qtd * tarifa_comp_dist;
-  const dist_total = consumo_total_val - comp_total_val_dist + editor.dist_outros;
-
-  const econ_total_com = dist_total + det_credito_total;
-  const econ_total_sem = consumo_total_val + editor.dist_outros;
-  const economiaMes = Math.max(0, econ_total_sem - econ_total_com);
-
-  const co2_kg = comp_qtd * 0.07;
-  const arvores = (co2_kg / 1000.0) * 8;
-
-  return {
-    ...d,
-    totalPagar: det_credito_total,
-    economiaMes: economiaMes,
-    co2Evitado: co2_kg,
-    arvoresEquivalentes: arvores,
-    det_credito_qtd: comp_qtd,
-    det_credito_tar: det_credito_tar_recalc, // Tarifa recalculada do editor
-    det_credito_total: det_credito_total,
-    dist_outros: editor.dist_outros,
-    dist_total: dist_total,
-    econ_total_sem: econ_total_sem,
-    econ_total_com: econ_total_com,
-    // Nota: economiaTotal histórica não é recalculada, apenas a do mês
-  };
 }
