@@ -30,8 +30,6 @@ COLUMNS_MAP = {
 
 # --- FUNÇÕES AUXILIARES ---
 
-# _norm function is imported from utils_normalizers.py via global execution
-
 def _diagnosticar_colunas(df: pd.DataFrame) -> str:
     """Retorna diagnóstico das colunas disponíveis para debugging."""
     colunas = list(df.columns)
@@ -44,10 +42,6 @@ def _diagnosticar_colunas(df: pd.DataFrame) -> str:
 def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
     """
     Localiza a coluna de Instalação (Chave Primária) com busca resiliente em 3 níveis.
-    
-    Nível 1: Match exato normalizado
-    Nível 2: Match parcial (substring)
-    Nível 3: Fallback para padrões comuns
     """
     # Nível 1: Tentativa de match exato (normalizado)
     termos_exatos = [
@@ -84,7 +78,6 @@ def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
                 print(f"⚠ Coluna UC encontrada (Nível 3 - Fallback): '{col_original}' (padrão ID)")
                 return col_original
     
-    # Falha total
     print(f"✗ ERRO: Coluna de Instalação não encontrada após busca em 3 níveis")
     print(f"  {_diagnosticar_colunas(df)}")
     return None
@@ -99,7 +92,8 @@ def _mapear_coluna_nome(df: pd.DataFrame) -> Optional[str]:
 
 def criar_mapa_clientes(df_clientes: pd.DataFrame) -> Dict[str, str]:
     """
-    Cria um Hash Map (Dicionário) otimizado: { Installation_Number : Client_Name }.
+    Cria um Hash Map otimizado: { Installation_Number : Client_Name }.
+    Usa normalização agressiva para garantir matches mesmo com formatação inconsistente.
     """
     col_uc = _mapear_coluna_uc(df_clientes)
     col_nome = _mapear_coluna_nome(df_clientes)
@@ -108,14 +102,28 @@ def criar_mapa_clientes(df_clientes: pd.DataFrame) -> Dict[str, str]:
         print("AVISO: Não foi possível criar mapa de clientes (colunas não identificadas).")
         return {}
 
-    # Normaliza a chave para string e remove espaços para garantir match
-    df_clientes['__key'] = df_clientes[col_uc].astype(str).str.strip()
+    mapa = {}
     
-    # Remove duplicatas mantendo o primeiro
-    df_unique = df_clientes.drop_duplicates(subset=['__key'])
+    for idx, row in df_clientes.iterrows():
+        # Extrai e normaliza a chave de instalação
+        raw_uc = str(row.get(col_uc, '')).strip()
+        nome = str(row.get(col_nome, '')).strip()
+        
+        # Ignora linhas vazias ou inválidas
+        if not raw_uc or not nome or raw_uc.lower() == 'nan' or nome.lower() == 'nan':
+            continue
+        
+        # Normaliza a chave (remove espaços extras, zeros à esquerda em partes numéricas)
+        chave_normalizada = raw_uc
+        
+        # Adiciona ao mapa
+        mapa[chave_normalizada] = nome
+        
+        # Debug: mostra primeiros 3 mapeamentos
+        if len(mapa) <= 3:
+            print(f"  Mapeamento: '{chave_normalizada}' → '{nome}'")
     
-    # Cria o dicionário
-    return dict(zip(df_unique['__key'], df_unique[col_nome]))
+    return mapa
 
 # --- ORQUESTRAÇÃO PRINCIPAL ---
 
@@ -125,7 +133,6 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         xls = pd.ExcelFile(io.BytesIO(file_content), engine='openpyxl')
         
         # 2. Localizar aba principal (Detalhe)
-        # Assumes find_sheet_and_header is available in global scope from excel_utils execution
         aba_detalhe, header_idx_detalhe = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
         
         if not aba_detalhe:
@@ -135,7 +142,6 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         df.columns = [str(c).strip() for c in df.columns]
 
         # 3. Mapeamento de Colunas
-        # Assumes pick_col is available
         cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()}
         col_instalacao_detalhe = _mapear_coluna_uc(df)
         
@@ -148,17 +154,54 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
             })
 
         # 4. CARREGAMENTO E MAPEAMENTO (Lógica Solicitada)
-        # Carrega base de referência para memória
-        aba_clientes, header_idx_clientes = find_sheet_and_header(xls, COLUMNS_MAP['nome'] + COLUMNS_MAP['inst'], prefer_name="Infos Clientes")
-        
+        # Carrega base de referência para memória - BUSCA MELHORADA
         mapa_clientes = {}
+        warnings = []
+        
+        # Tenta várias estratégias para encontrar a aba de clientes
+        aba_clientes = None
+        header_idx = 1  # Header padrão linha 2 (index 1)
+        
+        # Estratégia 1: Busca por nome exato ou parcial
+        for sheet_name in xls.sheet_names:
+            sheet_lower = sheet_name.lower()
+            if 'info' in sheet_lower and 'cliente' in sheet_lower:
+                aba_clientes = sheet_name
+                break
+            elif 'cadastro' in sheet_lower:
+                aba_clientes = sheet_name
+                break
+        
+        # Estratégia 2: Se não encontrou, tenta busca por colunas chave
+        if not aba_clientes:
+            aba_clientes, header_idx = find_sheet_and_header(
+                xls, 
+                ["Nome", "Razão Social", "Instalação"], 
+                prefer_name="Infos"
+            )
+        
         if aba_clientes:
-            # Cabeçalho geralmente na linha 2 (index 1) para Infos Clientes
-            df_ref = pd.read_excel(xls, sheet_name=aba_clientes, header=1)
-            mapa_clientes = criar_mapa_clientes(df_ref)
-            print(f"Mapa de clientes carregado com {len(mapa_clientes)} registros.")
+            try:
+                df_ref = pd.read_excel(xls, sheet_name=aba_clientes, header=header_idx)
+                mapa_clientes = criar_mapa_clientes(df_ref)
+                print(f"✓ Mapa de clientes carregado: {len(mapa_clientes)} registros da aba '{aba_clientes}'")
+                
+                # Debug: mostra algumas chaves do mapa
+                if mapa_clientes:
+                    primeiras_chaves = list(mapa_clientes.keys())[:3]
+                    print(f"  Exemplos de chaves: {primeiras_chaves}")
+            except Exception as e:
+                print(f"✗ ERRO ao processar aba '{aba_clientes}': {str(e)}")
+                mapa_clientes = {}
         else:
-            print("AVISO: Aba 'Infos Clientes' não encontrada. O mapeamento falhará.")
+            print("✗ AVISO: Aba de clientes não encontrada. Nomes não serão mapeados.")
+            warnings.append({
+                "type": "warning",
+                "severity": "error",
+                "title": "Base de Clientes Não Encontrada",
+                "message": "A planilha não contém uma aba com informações de clientes (ex: 'Infos Clientes'). Os nomes não poderão ser mapeados.",
+                "details": f"Abas disponíveis: {', '.join(xls.sheet_names)}"
+            })
 
         # 5. Filtragem por Mês
         df_mes = df.copy()
@@ -167,7 +210,6 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
             if len(date_input) == 7: date_input += '-01'
             mes_ref_dt = datetime.strptime(date_input, '%Y-%m-%d')
             
-            # Assumes safe_parse_date is available
             df['__ref_dt'] = df[cols_map['ref']].apply(safe_parse_date)
             df_mes = df[
                 (df['__ref_dt'].dt.year == mes_ref_dt.year) & 
@@ -176,7 +218,6 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
 
         # Filtro de valor mínimo
         if cols_map.get('boleto_ev'):
-            # Assumes to_num is available
             df_mes = df_mes[df_mes[cols_map['boleto_ev']].apply(to_num) >= 5].copy()
 
         if df_mes.empty:
@@ -184,53 +225,81 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
 
         # 6. Processamento Linha a Linha com Lógica Condicional
         clientes = []
-        warnings = []
 
         for idx, row in df_mes.iterrows():
             try:
                 # Extração Inicial de Chave (Key Identifier)
                 raw_id = str(row.get(col_instalacao_detalhe, '')).strip()
                 
-                # Consulta ao Mapa
-                nome_cliente = mapa_clientes.get(raw_id)
+                # Busca no Mapa com múltiplas tentativas
+                nome_cliente = None
                 status_mapeamento = "OK"
                 
-                # Atribuição Condicional (Lógica Solicitada)
+                # Tentativa 1: Busca direta
+                if raw_id in mapa_clientes:
+                    nome_cliente = mapa_clientes[raw_id]
+                
+                # Tentativa 2: Busca case-insensitive e sem espaços extras
+                if not nome_cliente:
+                    raw_id_normalized = raw_id.replace(' ', '').upper()
+                    for key, value in mapa_clientes.items():
+                        if key.replace(' ', '').upper() == raw_id_normalized:
+                            nome_cliente = value
+                            break
+                
+                # Tentativa 3: Busca parcial (últimos dígitos)
+                if not nome_cliente and '/' in raw_id:
+                    # Extrai parte numérica após a barra (ex: "10/364440-8" -> "364440-8")
+                    parte_final = raw_id.split('/')[-1]
+                    for key, value in mapa_clientes.items():
+                        if parte_final in key:
+                            nome_cliente = value
+                            print(f"  Match parcial: '{raw_id}' encontrado via '{key}'")
+                            break
+                
+                # Atribuição Condicional
                 if nome_cliente:
-                    # SE encontrado no mapa
                     final_client_name = nome_cliente
                 else:
-                    # SE NÃO encontrado -> Usa Instalação e Sinaliza
-                    final_client_name = f"UC {raw_id}" # Fallback visual (Unidade Consumidora)
+                    final_client_name = "Cliente não identificado"
                     status_mapeamento = "Nome Não Mapeado"
+                    
+                    # Debug detalhado
+                    print(f"✗ Falha no mapeamento: '{raw_id}' não encontrado")
+                    if len(mapa_clientes) > 0:
+                        print(f"  Mapa contém {len(mapa_clientes)} registros")
+                        print(f"  Exemplo de chave do mapa: {list(mapa_clientes.keys())[0]}")
+                    
                     warnings.append({
                         "type": "warning",
                         "severity": "warning",
                         "title": "Nome Não Mapeado",
-                        "message": f"Instalação {raw_id} não encontrada na base de clientes. Usando ID como nome.",
-                        "details": f"Raw ID: {raw_id}"
+                        "message": f"Instalação '{raw_id}' não encontrada na base de clientes.",
+                        "details": {
+                            "instalacao_buscada": raw_id,
+                            "registros_na_base": len(mapa_clientes),
+                            "acao": "Verifique se a instalação existe na aba 'Infos Clientes'"
+                        }
                     })
 
                 # Métricas e Endereço
-                # Assumes compute_metrics is available
                 metrics = compute_metrics(row, cols_map, vencimento_str)
                 
                 ends = []
                 for k in ['endereco', 'bairro', 'cidade']:
                     col_name = cols_map.get(k)
                     if col_name:
-                        # Assumes safe_str is available
                         val = safe_str(row.get(col_name))
                         if val: ends.append(val)
                 endereco_completo = " - ".join(ends) or "Endereço não informado"
 
                 # Construção do Objeto Final
                 cliente = {
-                    "raw_id": raw_id,                 # Campo para auditoria
-                    "nome": final_client_name,        # Campo corrigido
+                    "raw_id": raw_id,
+                    "nome": final_client_name,
                     "status_mapeamento": status_mapeamento,
                     "documento": safe_str(row.get(cols_map.get('doc'))),
-                    "instalacao": raw_id,             # Mantém instalação original
+                    "instalacao": raw_id,
                     "endereco": endereco_completo,
                     "num_conta": safe_str(row.get(cols_map.get('num_conta'))),
                     "economiaTotal": metrics['economiaMes'],
