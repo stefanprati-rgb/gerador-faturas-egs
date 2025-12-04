@@ -1,7 +1,5 @@
 import pandas as pd
 from datetime import datetime
-# Importa a função de conversão numérica
-# from .utils_normalizers import to_num 
 
 # =================================================================
 # CONSTANTES E CÁLCULO DE MÉTRICAS (src/python/calculators_metrics.py)
@@ -13,12 +11,23 @@ TREES_PER_TON_CO2 = 8
 FALLBACK_TARIFA_DIST = 0.92  # Tarifa padrão de consumo (Fallback)
 FALLBACK_TARIFA_COMP_EV = 0.72 # Tarifa padrão EGS (Fallback)
 
+# Percentuais do Fio B por ano (Resolução Normativa ANEEL)
+ANO_ATUAL = 2025
+PERCENTUAIS_FIO_B = {
+    2023: 0.15,  # 15%
+    2024: 0.30,  # 30%
+    2025: 0.45,  # 45%
+    2026: 0.60,  # 60%
+    2027: 0.75,  # 75%
+    2028: 0.90   # 90%
+}
+PERCENTUAL_FIO_B_ATUAL = PERCENTUAIS_FIO_B.get(ANO_ATUAL, 0.90)
+
 def compute_metrics(row, cols_map, vencimento_iso):
     """Realiza toda a matemática financeira e ambiental da fatura."""
     
     def get(key, default=0.0):
         col = cols_map.get(key)
-        # Assume to_num é global
         val = to_num(row.get(col, default)) if col else default
         return val
 
