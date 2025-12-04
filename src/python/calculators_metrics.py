@@ -1,7 +1,7 @@
 import pandas as pd
 from datetime import datetime
 # Importa a função de conversão numérica
-from .utils_normalizers import to_num 
+# from .utils_normalizers import to_num 
 
 # =================================================================
 # CONSTANTES E CÁLCULO DE MÉTRICAS (src/python/calculators_metrics.py)
@@ -18,6 +18,7 @@ def compute_metrics(row, cols_map, vencimento_iso):
     
     def get(key, default=0.0):
         col = cols_map.get(key)
+        # Assume to_num é global
         val = to_num(row.get(col, default)) if col else default
         return val
 
