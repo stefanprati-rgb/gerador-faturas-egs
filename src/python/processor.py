@@ -5,15 +5,16 @@ from datetime import datetime
 
 # Importa as novas dependências
 # Nota: As funções são importadas, mas o Pyodide as executará no mesmo escopo, garantindo o funcionamento.
-# from .utils_normalizers import to_num, safe_str, safe_parse_date # REMOVIDO para evitar ImportError no Pyodide
-# from .excel_utils import pick_col, find_sheet_and_header # REMOVIDO
-# from .calculators_metrics import compute_metrics # REMOVIDO
+# from .utils_normalizers import to_num, safe_str, safe_parse_date 
+# from .excel_utils import pick_col, find_sheet_and_header
+# from .calculators_metrics import compute_metrics
 
 # Definição das Colunas (Centralizada para fácil manutenção de mapeamento)
 COLUMNS_MAP = {
     'ref': ["REF", "Mês de Referência", "Competência"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
-    'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente"],
+    # ADICIONADO: 'NOME' e 'RAZÃO SOCIAL' como alternativas de mapeamento
+    'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
     'doc': ["Documento", "CPF/CNPJ", "CPF", "CNPJ"],
     'consumo_qtd': ["CONSUMO_FP", "Energia consumida - Fora ponta - quantidade", "Consumo KWh"],
     'comp_qtd': ["CRÉD. CONSUMIDO_FP", "Creditos consumidos - Fora ponta - quantidade", "Energia Compensada"],
