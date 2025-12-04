@@ -2,24 +2,36 @@
  * Módulo de geração de PDFs
  */
 
-import { formatCurrency, formatNumber, formatDate, formatMonthName, sanitizeFilename } from './formatters.js';
+import { formatCurrency, formatNumber, formatDate, sanitizeFilename } from './formatters.js';
+// Importamos o template aqui também para garantir autonomia
+import { getPDFTemplate } from '../modules/gerador/pdfTemplate.js';
 
 class PDFGenerator {
     constructor() {
         console.log('PDFGenerator instanciado');
-        this.currentChart = null;
     }
 
     /**
      * Gera PDF de uma fatura
-     * @param {object} client - Dados do cliente
-     * @param {string} mesReferencia - Mês no formato YYYY-MM
-     * @returns {Promise<{blob: Blob, filename: string}>}
      */
     async generatePDF(client, mesReferencia) {
-        const element = document.getElementById('pdf-page');
+        // 1. Tenta encontrar o template
+        let element = document.getElementById('pdf-page');
+
+        // 2. AUTO-REPARO: Se não encontrar, injeta agora mesmo
         if (!element) {
-            throw new Error('Template PDF não encontrado no DOM');
+            console.warn('Template PDF ausente. Injetando sob demanda...');
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = getPDFTemplate();
+            document.body.appendChild(wrapper);
+
+            // Tenta buscar novamente
+            element = document.getElementById('pdf-page');
+        }
+
+        // 3. Verificação final
+        if (!element) {
+            throw new Error('Falha crítica: Template PDF não pôde ser carregado.');
         }
 
         // Preencher template
@@ -42,6 +54,11 @@ class PDFGenerator {
         return new Promise((resolve, reject) => {
             setTimeout(async () => {
                 try {
+                    // Verifica se a lib html2pdf está carregada
+                    if (typeof html2pdf === 'undefined') {
+                        throw new Error('Biblioteca html2pdf não carregada.');
+                    }
+
                     const worker = html2pdf().from(element).set(opt);
                     const pdf = await worker.toPdf().get('pdf');
 
@@ -60,10 +77,9 @@ class PDFGenerator {
             }, 100);
         });
     }
+
     /**
      * Preenche o template HTML com dados do cliente
-     * @param {object} client - Dados do cliente
-     * @param {string} mesReferencia - Mês no formato YYYY-MM
      */
     async fillTemplate(client, mesReferencia) {
         const refDate = new Date(mesReferencia + '-02T00:00:00');
@@ -73,66 +89,75 @@ class PDFGenerator {
         const mesNome = refDate.toLocaleDateString('pt-BR', { month: 'long', timeZone: 'UTC' });
         const mesCap = mesNome.charAt(0).toUpperCase() + mesNome.slice(1);
 
+        // Helpers para segurança (evita erro se elemento não existir no template novo)
+        const setText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text;
+        };
+        const setHTML = (id, html) => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = html;
+        };
+
         // Título
-        const tituloEl = document.getElementById('pdf-titulo-p1');
-        if (tituloEl) tituloEl.textContent = `Sua contribuição de ${mesCap} chegou`;
+        setText('pdf-titulo-p1', `Sua contribuição de ${mesCap} chegou`);
 
         // Dados do cliente
-        document.getElementById('pdf-nome-cliente-p1').textContent = client.nome;
-        document.getElementById('pdf-cpf-p1').textContent = `CPF/CNPJ: ${client.documento}`;
-        document.getElementById('pdf-endereco-p1').textContent = client.endereco;
-        document.getElementById('pdf-instalacao-p1').textContent = client.instalacao;
-        document.getElementById('pdf-numconta-p1').textContent = client.num_conta || '';
-        document.getElementById('pdf-emissao-p1').textContent = formatDate(emissao);
+        setText('pdf-nome-cliente-p1', client.nome);
+        setText('pdf-cpf-p1', `CPF/CNPJ: ${client.documento}`);
+        setText('pdf-endereco-p1', client.endereco);
+        setText('pdf-instalacao-p1', client.instalacao);
+        setText('pdf-numconta-p1', client.num_conta || '');
+        setText('pdf-emissao-p1', formatDate(emissao));
 
         // Valores principais
-        document.getElementById('pdf-total-pagar').textContent = formatCurrency(client.totalPagar);
-        document.getElementById('pdf-vencimento-p1').textContent = formatDate(venc, { day: '2-digit', month: 'long', year: 'numeric' });
-        document.getElementById('pdf-economia-mes').textContent = formatCurrency(client.economiaMes);
-        document.getElementById('pdf-economia-acumulada').textContent = formatCurrency(client.economiaTotal);
-        document.getElementById('pdf-arvores').textContent = formatNumber(client.arvoresEquivalentes);
-        document.getElementById('pdf-co2').textContent = `${formatNumber(client.co2Evitado)} kg`;
+        setText('pdf-total-pagar', formatCurrency(client.totalPagar));
+        setText('pdf-vencimento-p1', formatDate(venc, { day: '2-digit', month: 'long', year: 'numeric' }));
+        setText('pdf-economia-mes', formatCurrency(client.economiaMes));
+        setText('pdf-economia-acumulada', formatCurrency(client.economiaTotal));
+        setText('pdf-arvores', formatNumber(client.arvoresEquivalentes));
+        setText('pdf-co2', `${formatNumber(client.co2Evitado)} kg`);
 
         // Rodapé
-        document.getElementById('pdf-ref-foot').textContent = refDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' }).replace('.', '');
-        document.getElementById('pdf-valor-foot').textContent = formatCurrency(client.totalPagar);
-        document.getElementById('pdf-venc-foot').textContent = formatDate(venc);
+        const refShort = refDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' }).replace('.', '');
+        setText('pdf-ref-foot', refShort);
+        setText('pdf-valor-foot', formatCurrency(client.totalPagar));
+        setText('pdf-venc-foot', formatDate(venc));
 
         // Detalhamento contribuição
-        document.getElementById('pdf-det-credito-qtd').textContent = formatNumber(client.det_credito_qtd);
-        document.getElementById('pdf-det-credito-tar').textContent = client.det_credito_tar > 0 ? formatCurrency(client.det_credito_tar) : '—';
-        document.getElementById('pdf-det-credito-total').textContent = formatCurrency(client.det_credito_total);
-        document.getElementById('pdf-det-total-contrib').textContent = formatCurrency(client.totalPagar);
+        setText('pdf-det-credito-qtd', formatNumber(client.det_credito_qtd));
+        setText('pdf-det-credito-tar', client.det_credito_tar > 0 ? formatCurrency(client.det_credito_tar) : '—');
+        setText('pdf-det-credito-total', formatCurrency(client.det_credito_total));
+        setText('pdf-det-total-contrib', formatCurrency(client.totalPagar));
 
         // Distribuidora
-        document.getElementById('pdf-dist-consumo-qtd').textContent = `${formatNumber(client.dist_consumo_qtd)} kWh`;
-        document.getElementById('pdf-dist-consumo-tar').textContent = formatCurrency(client.dist_consumo_tar);
-        document.getElementById('pdf-dist-consumo-total').textContent = formatCurrency(client.dist_consumo_total);
-        document.getElementById('pdf-dist-comp-qtd').textContent = `${formatNumber(client.dist_comp_qtd)} kWh`;
-        document.getElementById('pdf-dist-comp-tar').textContent = formatCurrency(client.dist_comp_tar);
-        document.getElementById('pdf-dist-comp-total').textContent = `${client.dist_comp_total < 0 ? '-' : ''} ${formatCurrency(Math.abs(client.dist_comp_total))}`;
-        document.getElementById('pdf-dist-outros').textContent = formatCurrency(client.dist_outros);
-        document.getElementById('pdf-dist-total').textContent = formatCurrency(client.dist_total);
+        setText('pdf-dist-consumo-qtd', `${formatNumber(client.dist_consumo_qtd)} kWh`);
+        setText('pdf-dist-consumo-tar', formatCurrency(client.dist_consumo_tar));
+        setText('pdf-dist-consumo-total', formatCurrency(client.dist_consumo_total));
+        setText('pdf-dist-comp-qtd', `${formatNumber(client.dist_comp_qtd)} kWh`);
+        setText('pdf-dist-comp-tar', formatCurrency(client.dist_comp_tar));
+        setText('pdf-dist-comp-total', `${client.dist_comp_total < 0 ? '-' : ''} ${formatCurrency(Math.abs(client.dist_comp_total))}`);
+        setText('pdf-dist-outros', formatCurrency(client.dist_outros));
+        setText('pdf-dist-total', formatCurrency(client.dist_total));
 
         // Comparativos
-        document.getElementById('pdf-econ-total-sem').textContent = formatCurrency(client.econ_total_sem);
-        document.getElementById('pdf-econ-tarifa-dist').textContent = formatNumber(client.dist_consumo_tar, 6);
-        document.getElementById('pdf-econ-qtd-dist').textContent = `${formatNumber(client.dist_consumo_qtd)} kWh`;
-        document.getElementById('pdf-econ-outros').textContent = formatCurrency(client.dist_outros);
-        document.getElementById('pdf-econ-total-com').textContent = formatCurrency(client.econ_total_com);
-        document.getElementById('pdf-econ-economia-final').textContent = formatCurrency(client.economiaMes);
+        setText('pdf-econ-total-sem', formatCurrency(client.econ_total_sem));
+        setText('pdf-econ-tarifa-dist', formatNumber(client.dist_consumo_tar, 6));
+        setText('pdf-econ-qtd-dist', `${formatNumber(client.dist_consumo_qtd)} kWh`);
+        setText('pdf-econ-outros', formatCurrency(client.dist_outros));
+        setText('pdf-econ-total-com', formatCurrency(client.econ_total_com));
+        setText('pdf-econ-economia-final', formatCurrency(client.economiaMes));
 
         // Explicação do quadro "Com EGS"
-        const expEl = document.getElementById('pdf-econ-exp-ev');
         const tEv = Number(client.det_credito_tar || 0);
         const qtdEv = formatNumber(client.det_credito_qtd);
         const totDt = formatCurrency(client.dist_total);
         const totContrib = formatCurrency(client.totalPagar);
 
         if (tEv <= 0) {
-            expEl.innerHTML = `Boleto EGS ${totContrib} + Total Distribuidora ${totDt}`;
+            setHTML('pdf-econ-exp-ev', `Boleto EGS ${totContrib} + Total Distribuidora ${totDt}`);
         } else {
-            expEl.innerHTML = `(Tarifa R$ ${formatNumber(tEv, 6)} x Qtd. ${qtdEv}) + Total Distribuidora ${totDt}`;
+            setHTML('pdf-econ-exp-ev', `(Tarifa R$ ${formatNumber(tEv, 6)} x Qtd. ${qtdEv}) + Total Distribuidora ${totDt}`);
         }
 
         // Resumo de economia
@@ -140,17 +165,13 @@ class PDFGenerator {
         const comGD = Number(client.econ_total_com || 0);
         const econ = Number(client.economiaMes || 0);
 
-        document.getElementById('pdf-econ-mes-valor').textContent = formatCurrency(econ);
-        document.getElementById('pdf-econ-sem-gd').textContent = formatCurrency(semGD);
-        document.getElementById('pdf-econ-com-gd').textContent = formatCurrency(comGD);
+        setText('pdf-econ-mes-valor', formatCurrency(econ));
+        setText('pdf-econ-sem-gd', formatCurrency(semGD));
+        setText('pdf-econ-com-gd', formatCurrency(comGD));
     }
 
     /**
      * Gera múltiplos PDFs e compacta em ZIP
-     * @param {Array} clients - Lista de clientes
-     * @param {string} mesReferencia - Mês no formato YYYY-MM
-     * @param {Function} progressCallback - Callback de progresso (current, total)
-     * @returns {Promise<Blob>} Blob do arquivo ZIP
      */
     async generateZIP(clients, mesReferencia, progressCallback) {
         const zip = new JSZip();
