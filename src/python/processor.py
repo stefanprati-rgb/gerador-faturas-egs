@@ -261,7 +261,13 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         # Filtrar pelo Mês de Referência (se a coluna existir)
         # Se não existir coluna REF, assumimos que a planilha toda é do mês solicitado
         if cols_map['ref']:
-            mes_ref_dt = datetime.strptime(mes_referencia_str + '-01', '%Y-%m-%d')
+            # Tratamento robusto para a data que vem do JS (pode ser YYYY-MM ou YYYY-MM-DD)
+            date_input = mes_referencia_str.strip()
+            if len(date_input) == 7: # YYYY-MM
+                date_input += '-01'
+            
+            mes_ref_dt = datetime.strptime(date_input, '%Y-%m-%d')
+            
             df['__ref_dt'] = df[cols_map['ref']].apply(safe_parse_date)
             
             # Filtra apenas mês/ano correspondente
