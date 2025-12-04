@@ -4,8 +4,10 @@ import router from './router.js';
 import { renderGerador, initGerador } from './modules/gerador/index.js';
 import { renderProcessador, initProcessador } from './modules/processador/index.js';
 import { renderCorretor, initCorretor } from './modules/corretor/index.js';
-import excelProcessor from './core/excelProcessor.js'; // [Adicionado] Importar o processador
+import excelProcessor from './core/excelProcessor.js';
 import notification from './components/Notification.js';
+// Importa o template do PDF
+import { getPDFTemplate } from './modules/gerador/pdfTemplate.js';
 
 /**
  * Inicialização da aplicação
@@ -21,25 +23,28 @@ class App {
      */
     async init() {
         try {
-            // Mostrar loading inicial rápido
+            // Mostrar loading inicial
             this.showLoading('Inicializando aplicação...');
 
-            // Configurar menu mobile
+            // 1. Injetar Template PDF (Correção do Erro)
+            this.injectGlobalResources();
+
+            // 2. Configurar menu mobile
             this.setupMobileMenu();
 
-            // Registrar rotas
+            // 3. Registrar rotas
             this.registerRoutes();
 
-            // Inicializar router
+            // 4. Inicializar router
             router.init();
 
-            // Esconder loading da interface (a app já está interativa)
+            // 5. Esconder loading (App interativa)
             this.hideLoading();
 
-            // [Melhoria UX] Mensagem de boas-vindas
+            // Mensagem de boas-vindas
             notification.success('Sistema carregado com sucesso!', 3000);
 
-            // [Melhoria Performance] Pré-carregar o Pyodide em background
+            // 6. Pré-carregar Pyodide em background
             this.preloadEngine();
 
         } catch (error) {
@@ -50,19 +55,29 @@ class App {
     }
 
     /**
+     * Injeta recursos globais ocultos (Templates, Modais globais)
+     */
+    injectGlobalResources() {
+        // Verifica se já existe para não duplicar
+        if (!document.getElementById('pdf-container')) {
+            const div = document.createElement('div');
+            // O template já vem com styles de ocultação (position: fixed; left: -9999px)
+            div.innerHTML = getPDFTemplate();
+            document.body.appendChild(div);
+            console.log('Template PDF injetado no DOM.');
+        }
+    }
+
+    /**
      * Inicia o carregamento do motor Python em background
      */
     async preloadEngine() {
         console.log('Iniciando pré-carregamento do Pyodide...');
         try {
-            // Inicia o init sem bloquear a UI. 
-            // O callback de status é opcional aqui, pois é background.
             await excelProcessor.init((status) => {
                 console.log(`[Pyodide Background]: ${status}`);
             });
             console.log('Motor Python pronto para uso!');
-            // Opcional: Notificar utilizador que o motor está pronto se quiser ser muito explícito
-            // notification.info('Motor de processamento pronto.');
         } catch (e) {
             console.warn('Pré-carregamento do Pyodide falhou (será tentado novamente ao usar a ferramenta).', e);
         }
@@ -104,7 +119,7 @@ class App {
      */
     setupMobileMenu() {
         const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-        const mobileNav = document.getElementById('mobile-nav');
+        const mobileNav = document.getElementById('mobile-nav'); // Nota: Verifique se este ID existe no seu HTML atualizado
 
         if (mobileMenuBtn && mobileNav) {
             mobileMenuBtn.addEventListener('click', () => {
@@ -122,7 +137,6 @@ class App {
 
     /**
      * Mostra overlay de loading
-     * @param {string} message - Mensagem a ser exibida
      */
     showLoading(message = 'Carregando...') {
         if (this.loadingOverlay) {
