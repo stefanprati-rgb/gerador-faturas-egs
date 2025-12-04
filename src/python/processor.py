@@ -117,20 +117,73 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                         if val: ends.append(val)
                 endereco_completo = " - ".join(ends) or "Endereço não informado"
                 
-                # Extração robusta do nome do cliente
+                # ========== EXTRAÇÃO ROBUSTA DO NOME COM FALLBACK INTELIGENTE ==========
                 nome_col = cols_map.get('nome')
                 nome_valor = None
+                fonte_nome = "principal"
                 
+                # Tentativa 1: Coluna mapeada principal
                 if nome_col:
                     nome_valor = safe_str(row.get(nome_col))
                 
-                # DEBUG: Log do processo de extração do nome
+                # Tentativa 2: Fallback - buscar em TODAS as colunas que possam conter nome
                 if not nome_valor or nome_valor == "":
+                    # Lista de possíveis colunas que podem conter o nome (case-insensitive)
+                    possible_name_cols = [
+                        'nome', 'name', 'cliente', 'client', 'razao social', 'razão social',
+                        'razao_social', 'razaosocial', 'titular', 'responsavel', 'responsável',
+                        'consumidor', 'proprietario', 'proprietário'
+                    ]
+                    
+                    # Normaliza os nomes das colunas do DataFrame
+                    df_cols_normalized = {_norm(c): c for c in df.columns}
+                    
+                    # Tenta encontrar o nome em qualquer coluna que pareça conter nome
+                    for possible_col in possible_name_cols:
+                        normalized_possible = _norm(possible_col)
+                        # Busca exata
+                        if normalized_possible in df_cols_normalized:
+                            col_original = df_cols_normalized[normalized_possible]
+                            nome_valor = safe_str(row.get(col_original))
+                            if nome_valor:
+                                fonte_nome = f"fallback-exato:{col_original}"
+                                print(f"  ✓ Nome encontrado via fallback na coluna: {col_original}")
+                                break
+                        
+                        # Busca parcial (contém)
+                        if not nome_valor:
+                            for norm_col, orig_col in df_cols_normalized.items():
+                                if normalized_possible in norm_col or norm_col in normalized_possible:
+                                    nome_valor = safe_str(row.get(orig_col))
+                                    if nome_valor:
+                                        fonte_nome = f"fallback-parcial:{orig_col}"
+                                        print(f"  ✓ Nome encontrado via fallback parcial na coluna: {orig_col}")
+                                        break
+                            if nome_valor:
+                                break
+                
+                # Tentativa 3: Último recurso - usar instalação como identificador
+                if not nome_valor or nome_valor == "":
+                    instalacao_id = safe_str(row.get(cols_map.get('inst')))
+                    if instalacao_id:
+                        nome_valor = f"Cliente {instalacao_id}"
+                        fonte_nome = "ultimo-recurso:instalacao"
+                        print(f"  ⚠ Usando instalação como nome: {nome_valor}")
+                
+                # DEBUG: Log detalhado quando nome não é encontrado
+                if not nome_valor or nome_valor == "" or nome_valor.startswith("Cliente "):
+                    print(f"\n{'='*60}")
                     print(f"AVISO: Nome não encontrado para instalação {row.get(cols_map.get('inst'))}")
                     print(f"  Coluna mapeada: {nome_col}")
                     print(f"  Valor bruto: {row.get(nome_col) if nome_col else 'N/A'}")
-                    # Mostra apenas as primeiras 5 colunas para não poluir muito o log
-                    print(f"  Primeiras colunas da linha: {dict(list(row.items())[:5])}")
+                    print(f"  Fonte usada: {fonte_nome}")
+                    print(f"  Todas as colunas disponíveis: {list(df.columns)}")
+                    print(f"  Valores da linha completa:")
+                    for col in df.columns:
+                        val = row.get(col)
+                        if not pd.isna(val) and str(val).strip():
+                            print(f"    {col}: {val}")
+                    print(f"{'='*60}\n")
                 
                 # Monta objeto final
                 cliente = {
