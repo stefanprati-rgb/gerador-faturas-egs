@@ -1,3 +1,4 @@
+// src/modules/processador/index.js
 import excelProcessor from '../../core/excelProcessor.js';
 import stateManager from '../../core/StateManager.js';
 import { FileStatus } from '../../components/FileStatus.js';
@@ -316,7 +317,8 @@ async function handleProcess() {
     const result = await excelProcessor.processFile(state.file, state.params.mesReferencia, state.params.dataVencimento);
 
     // Salva no StateManager (dispara updateUI automaticamente)
-    stateManager.setProcessedResult(result);
+    // CORREÇÃO APLICADA AQUI
+    stateManager.setProcessedData(result);
 
     const dataCount = result.data?.length || 0;
     const warningsCount = result.warnings?.length || 0;
