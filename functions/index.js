@@ -3,6 +3,7 @@ const logger = require("firebase-functions/logger");
 
 /**
  * Função para gerar PDF via Puppeteer (Headless Chrome).
+ * Usa @sparticuz/chromium - versão otimizada para ambientes serverless.
  * Configurada com 2GB de RAM e Timeout maior para evitar crashes.
  */
 exports.gerarFaturaPDF = onCall({
@@ -19,24 +20,20 @@ exports.gerarFaturaPDF = onCall({
         throw new Error("HTML content is required");
     }
 
+    // Lazy loading: só carrega quando a função é chamada
+    const puppeteer = require('puppeteer-core');
+    const chromium = require('@sparticuz/chromium');
+
     let browser = null;
     try {
-        logger.info("Iniciando Puppeteer...");
-        // Lazy load para evitar timeout no deploy config
-        const puppeteer = require("puppeteer");
+        logger.info("Iniciando Puppeteer com @sparticuz/chromium...");
 
         // 2. Configuração otimizada para Cloud Run (ambiente serverless)
         browser = await puppeteer.launch({
-            headless: "new",
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // Usa /tmp em vez de /dev/shm (crítico para Docker)
-                '--disable-gpu',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-            ]
+            args: chromium.args,
+            defaultViewport: chromium.defaultViewport,
+            executablePath: await chromium.executablePath(),
+            headless: chromium.headless,
         });
 
         const page = await browser.newPage();
@@ -56,9 +53,10 @@ exports.gerarFaturaPDF = onCall({
 
         logger.info("PDF gerado com sucesso!");
 
-        // 3. Retorno (O Firebase onCall serializa isso automaticamente)
+        // 3. Retorno - Converter Uint8Array para Buffer antes de base64
+        const base64Pdf = Buffer.from(pdfBuffer).toString('base64');
         return {
-            pdf: pdfBuffer.toString('base64')
+            pdf: base64Pdf
         };
 
     } catch (error) {
