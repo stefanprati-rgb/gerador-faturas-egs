@@ -1,72 +1,96 @@
 /**
- * Template PDF para faturas EGS
+ * Template PDF para faturas EGS (Server-Side)
+ * Retorna HTML completo para geração via Puppeteer
  */
 
-export function getPDFTemplate() {
+export function getPDFTemplate(data) {
   return `
-    <div id="pdf-container" style="position:fixed; left:-9999px; top:0; width:210mm; z-index:-1; visibility:hidden;">
-      <div id="pdf-page" style="width:210mm;min-height:297mm;background:#fff;color:#0B1220;padding:12mm 14mm 10mm 14mm;display:flex;flex-direction:column;font-family:'Poppins',sans-serif; font-size:10.5px; line-height:1.25; box-sizing:border-box; overflow:visible; margin:0;">
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+      <style>
+        body { 
+          font-family: 'Poppins', sans-serif; 
+          margin: 0;
+          padding: 0;
+          background: #fff;
+          color: #0B1220;
+        }
+        @page { size: A4; margin: 0; }
+        .font-bold { font-weight: 700; }
+        .text-right { text-align: right; }
+        .text-gray-600 { color: #4B5563; }
+      </style>
+    </head>
+    <body class="p-0 m-0 bg-white">
+      <div id="pdf-page" style="width:210mm;min-height:297mm;background:#fff;padding:12mm 14mm 10mm 14mm;display:flex;flex-direction:column;font-size:10.5px;line-height:1.25;box-sizing:border-box;">
         
         <!-- Cabeçalho -->
         <header class="flex justify-between items-start" style="margin-bottom:6mm;">
           <div style="display:flex; flex-direction:column; gap:4mm; max-width:120mm;">
             <div style="font-weight:700; font-size:34px; letter-spacing:0.5px; text-align:left;">EGS ENERGIA</div>
-            <div id="pdf-titulo-p1" style="font-weight:600; font-size:13px; text-align:left;">
-              Sua contribuição de [Mês] chegou
+            <div style="font-weight:600; font-size:13px; text-align:left;">
+              ${data.titulo_p1}
             </div>
           </div>
         
           <div class="text-right" style="font-size:10px; max-width:72mm;">
-            <p id="pdf-nome-cliente-p1" class="font-bold" style="font-size:12px;">[Nome Cliente]</p>
-            <p id="pdf-cpf-p1" class="text-gray-600">[CPF/CNPJ]</p>
-            <p id="pdf-endereco-p1" class="text-gray-600">[Endereço]</p>
-            <p class="mt-1">Código Instalação: <span id="pdf-instalacao-p1" class="font-bold">[Instalação]</span></p>
-            <p>Número da conta: <span id="pdf-numconta-p1" class="font-bold">[Num Conta]</span></p>
-            <p>Emissão: <span id="pdf-emissao-p1" class="font-bold">[Emissão]</span></p>
+            <p class="font-bold" style="font-size:12px;">${data.nome_cliente_p1}</p>
+            <p class="text-gray-600">${data.cpf_p1}</p>
+            <p class="text-gray-600">${data.endereco_p1}</p>
+            <p class="mt-1">Código Instalação: <span class="font-bold">${data.instalacao_p1}</span></p>
+            <p>Número da conta: <span class="font-bold">${data.numconta_p1}</span></p>
+            <p>Emissão: <span class="font-bold">${data.emissao_p1}</span></p>
           </div>
         </header>
-    
+
         <!-- Faixa superior: Total + Indicadores -->
         <section style="display:grid; grid-template-columns: 1.2fr 1fr; gap:8mm; align-items:start; margin-bottom:6mm;">
+          <!-- Left box -->
           <div class="p-6 rounded-xl" style="background:#12123B; color:#fff;">
             <p style="font-size:12px;">Total a pagar</p>
-            <p id="pdf-total-pagar" class="font-bold" style="font-size:34px; margin:6px 0 8px;">R$ 0,00</p>
+            <p class="font-bold" style="font-size:34px; margin:6px 0 8px;">${data.total_pagar}</p>
             <p style="font-size:10px;">Data de vencimento</p>
-            <p id="pdf-vencimento-p1" style="font-size:12px; font-weight:600;">[Data]</p>
+            <p style="font-size:12px; font-weight:600;">${data.vencimento_p1}</p>
           </div>
-        
+          
+          <!-- Indicators -->
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5mm;">
             <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-              <p id="pdf-economia-mes" class="font-bold" style="font-size:16px;">R$ 0,00</p>
+              <p class="font-bold" style="font-size:16px;">${data.economia_mes}</p>
               <p style="opacity:.9;">Economia Mês</p>
             </div>
             <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-              <p id="pdf-economia-acumulada" class="font-bold" style="font-size:16px;">R$ 0,00</p>
+              <p class="font-bold" style="font-size:16px;">${data.economia_acumulada}</p>
               <p style="opacity:.9;">Economia acumulada</p>
             </div>
             <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-              <p id="pdf-arvores" class="font-bold" style="font-size:16px;">0,00</p>
+              <p class="font-bold" style="font-size:16px;">${data.arvores}</p>
               <p style="opacity:.9;">Árvores preservadas</p>
             </div>
             <div class="p-3 rounded-lg" style="background:#12123B; color:#fff;">
-              <p id="pdf-co2" class="font-bold" style="font-size:16px;">0,00 kg</p>
+              <p class="font-bold" style="font-size:16px;">${data.co2}</p>
               <p style="opacity:.9;">CO2 poupados</p>
             </div>
           </div>
         </section>
         
         <!-- RESUMO DE ECONOMIA -->
-        <section id="pdf-resumo-economia" style="margin:6mm 0 6mm 0;">
+        <section style="margin:6mm 0 6mm 0;">
           <div class="rounded-lg" style="background:#F3F4F6; padding:10px 12px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
               <div style="font-weight:700; font-size:12px;">Resumo da sua economia</div>
               <div style="text-align:right;">
                 <div style="font-size:18px; font-weight:800; color:#16A34A;">
-                  <span id="pdf-econ-mes-valor">R$ 0,00</span>
+                  <span>${data.econ_mes_valor}</span>
                 </div>
                 <div style="font-size:10px; color:#374151; margin-top:2px;">
-                  Sem GD: <span id="pdf-econ-sem-gd">R$ 0,00</span> &nbsp; • &nbsp;
-                  Com GD: <span id="pdf-econ-com-gd">R$ 0,00</span>
+                  Sem GD: <span>${data.econ_sem_gd}</span> &nbsp; • &nbsp;
+                  Com GD: <span>${data.econ_com_gd}</span>
                 </div>
               </div>
             </div>
@@ -93,9 +117,9 @@ export function getPDFTemplate() {
               <tbody>
                 <tr style="border-bottom:1px solid #E5E7EB;">
                   <td style="padding:5px 4px;">Crédito de Energia</td>
-                  <td id="pdf-det-credito-qtd" class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-det-credito-tar" class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-det-credito-total" class="text-right" style="padding:5px 4px; font-weight:600;"></td>
+                  <td class="text-right" style="padding:5px 4px;">${data.det_credito_qtd}</td>
+                  <td class="text-right" style="padding:5px 4px;">${data.det_credito_tar}</td>
+                  <td class="text-right" style="padding:5px 4px; font-weight:600;">${data.det_credito_total}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #E5E7EB;">
                   <td style="padding:5px 4px;">Desconto extra</td>
@@ -113,7 +137,7 @@ export function getPDFTemplate() {
                   <td style="padding:5px 4px; font-weight:700;">Total da sua contribuição</td>
                   <td class="text-right" style="padding:5px 4px;"></td>
                   <td class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-det-total-contrib" class="text-right" style="padding:5px 4px; font-weight:700;"></td>
+                  <td class="text-right" style="padding:5px 4px; font-weight:700;">${data.det_total_contrib}</td>
                 </tr>
               </tbody>
             </table>
@@ -137,56 +161,56 @@ export function getPDFTemplate() {
               <tbody>
                 <tr style="border-bottom:1px solid #E5E7EB;">
                   <td style="padding:5px 4px;">Energia Consumida</td>
-                  <td id="pdf-dist-consumo-qtd" class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-dist-consumo-tar" class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-dist-consumo-total" class="text-right" style="padding:5px 4px;"></td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_consumo_qtd}</td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_consumo_tar}</td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_consumo_total}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #E5E7EB;">
                   <td style="padding:5px 4px;">Energia Compensada</td>
-                  <td id="pdf-dist-comp-qtd" class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-dist-comp-tar" class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-dist-comp-total" class="text-right" style="padding:5px 4px;"></td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_comp_qtd}</td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_comp_tar}</td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_comp_total}</td>
                 </tr>
                 <tr style="border-bottom:1px solid #E5E7EB;">
                   <td style="padding:5px 4px;">Contrib. Ilum. Pública e Outros</td>
                   <td class="text-right" style="padding:5px 4px;"></td>
                   <td class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-dist-outros" class="text-right" style="padding:5px 4px;"></td>
+                  <td class="text-right" style="padding:5px 4px;">${data.dist_outros}</td>
                 </tr>
                 <tr style="background:#F3F4F6;">
                   <td style="padding:5px 4px; font-weight:700;">Total a pagar na sua fatura da distribuidora</td>
                   <td class="text-right" style="padding:5px 4px;"></td>
                   <td class="text-right" style="padding:5px 4px;"></td>
-                  <td id="pdf-dist-total" class="text-right" style="padding:5px 4px; font-weight:700;"></td>
+                  <td class="text-right" style="padding:5px 4px; font-weight:700;">${data.dist_total}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
-
+  
         <!-- Quadros de comparação -->
         <section style="margin-bottom:6mm;">
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5mm; margin-bottom:5mm;">
             <div class="rounded-lg" style="background:#F3F4F6; padding:8px 10px; display:flex; justify-content:space-between; align-items:baseline;">
               <div class="font-bold">Se fosse só distribuidora</div>
               <div class="text-right">
-                <span id="pdf-econ-total-sem" class="font-bold" style="font-size:12px;">R$ 0,00</span><br>
-                <span class="text-gray-600">(Tarifa <span id="pdf-econ-tarifa-dist"></span> x Qtd. <span id="pdf-econ-qtd-dist"></span>) + Outros <span id="pdf-econ-outros"></span></span>
+                <span class="font-bold" style="font-size:12px;">${data.econ_total_sem}</span><br>
+                <span class="text-gray-600">(Tarifa <span>${data.econ_tarifa_dist}</span> x Qtd. <span>${data.econ_qtd_dist}</span>) + Outros <span>${data.econ_outros}</span></span>
               </div>
             </div>
         
             <div class="rounded-lg" style="background:#F3F4F6; padding:8px 10px; display:flex; justify-content:space-between; align-items:baseline;">
               <div class="font-bold">Com EGS</div>
               <div class="text-right">
-                <span id="pdf-econ-total-com" class="font-bold" style="font-size:12px;">R$ 0,00</span><br>
-                <span id="pdf-econ-exp-ev" class="text-gray-600"></span>
+                <span class="font-bold" style="font-size:12px;">${data.econ_total_com}</span><br>
+                <span class="text-gray-600">${data.econ_exp_ev}</span>
               </div>
             </div>
           </div>
         
           <div class="rounded-lg text-center" style="background:#12123B; color:#fff; padding:10px;">
             <p class="font-bold" style="font-size:12px;">Sua economia neste mês</p>
-            <p id="pdf-econ-economia-final" class="font-bold" style="font-size:18px;">R$ 0,00</p>
+            <p class="font-bold" style="font-size:18px;">${data.econ_economia_final}</p>
           </div>
         </section>
     
@@ -211,9 +235,9 @@ export function getPDFTemplate() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td id="pdf-ref-foot" style="padding:5px 4px;">[Ref]</td>
-                    <td id="pdf-valor-foot" style="padding:5px 4px;">[Valor]</td>
-                    <td id="pdf-venc-foot" style="padding:5px 4px;">[Venc]</td>
+                    <td style="padding:5px 4px;">${data.ref_foot}</td>
+                    <td style="padding:5px 4px;">${data.valor_foot}</td>
+                    <td style="padding:5px 4px;">${data.venc_foot}</td>
                   </tr>
                 </tbody>
               </table>
@@ -223,19 +247,18 @@ export function getPDFTemplate() {
           <div style="margin-top:4mm;">
             <div class="rounded-lg" style="background:#F3F4F6; padding:8px 10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
               <div style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#0B1220;">
-                <i class="fa-solid fa-envelope" aria-hidden="true" style="font-size:12px; color:#12123B;"></i>
                 <span><strong>E-mail:</strong> atendimento@egsenergia.com.br</span>
               </div>
               <div style="width:1px; height:14px; background:#D1D5DB;"></div>
               <div style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#0B1220;">
-                <i class="fa-brands fa-whatsapp" aria-hidden="true" style="font-size:12px; color:#16A34A;"></i>
-                <span><strong>WhatsApp:</strong> (11) 99670-3826</span>
+                 <span><strong>WhatsApp:</strong> (11) 99670-3826</span>
               </div>
             </div>
           </div>
         </footer>
     
       </div>
-    </div>
+    </body>
+    </html>
   `;
 }

@@ -6,8 +6,8 @@ import { renderProcessador, initProcessador } from './modules/processador/index.
 import { renderCorretor, initCorretor } from './modules/corretor/index.js';
 import excelProcessor from './core/excelProcessor.js';
 import notification from './components/Notification.js';
-// Importa o template do PDF
-import { getPDFTemplate } from './modules/gerador/pdfTemplate.js';
+// Template do PDF agora é gerao no server-side
+// import { getPDFTemplate } from './modules/gerador/pdfTemplate.js';
 
 /**
  * Inicialização da aplicação
@@ -26,8 +26,8 @@ class App {
             // Mostrar loading inicial
             this.showLoading('Inicializando aplicação...');
 
-            // 1. Injetar Template PDF (Correção do Erro)
-            this.injectGlobalResources();
+            // 1. Injetar Template PDF (Removido - Server Side)
+            // this.injectGlobalResources();
 
             // 2. Configurar menu mobile
             this.setupMobileMenu();
