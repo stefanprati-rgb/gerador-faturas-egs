@@ -63,11 +63,24 @@ class PDFGenerator {
 
         // Configurações do html2pdf
         const opt = {
-            margin: 0,
+            margin: [2, 2, 2, 2],
             filename: filename,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                scrollY: 0,
+                scrollX: 0,
+                windowHeight: element.scrollHeight,
+                y: 0
+            },
+            jsPDF: {
+                unit: 'mm',
+                format: 'a4',
+                orientation: 'portrait',
+                compress: true
+            },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         // Gerar PDF

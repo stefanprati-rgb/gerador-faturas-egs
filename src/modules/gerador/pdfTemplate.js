@@ -4,8 +4,8 @@
 
 export function getPDFTemplate() {
   return `
-    <div id="pdf-container" style="position:fixed; left:-9999px; top:0; width:210mm; min-height:297mm; z-index:-1;">
-      <div id="pdf-page" style="width:210mm;height:297mm;background:#fff;color:#0B1220;padding:18mm 14mm;display:flex;flex-direction:column;font-family:'Poppins',sans-serif; font-size:10.5px; line-height:1.25; box-sizing:border-box; overflow:hidden; margin:0 auto;">
+    <div id="pdf-container" style="position:fixed; left:-9999px; top:0; width:210mm; z-index:-1; visibility:hidden;">
+      <div id="pdf-page" style="width:210mm;min-height:297mm;background:#fff;color:#0B1220;padding:12mm 14mm 10mm 14mm;display:flex;flex-direction:column;font-family:'Poppins',sans-serif; font-size:10.5px; line-height:1.25; box-sizing:border-box; overflow:visible; margin:0;">
         
         <!-- Cabeçalho -->
         <header class="flex justify-between items-start" style="margin-bottom:6mm;">
