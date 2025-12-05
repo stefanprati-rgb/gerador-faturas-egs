@@ -1,6 +1,5 @@
 const { onCall } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
-const puppeteer = require("puppeteer");
 
 /**
  * Função para gerar PDF via Puppeteer (Headless Chrome).
@@ -23,6 +22,8 @@ exports.gerarFaturaPDF = onCall({
     let browser = null;
     try {
         logger.info("Iniciando Puppeteer...");
+        // Lazy load para evitar timeout no deploy config
+        const puppeteer = require("puppeteer");
 
         // 2. Configuração otimizada para Cloud Run (ambiente serverless)
         browser = await puppeteer.launch({
