@@ -50,13 +50,15 @@ class PDFGenerator {
             .replace(/\s+/g, ' ') // Normaliza espaços
             .trim();
 
-        const instalacaoClean = instalacaoRaw.replace(/[<>:"/\\|?*]/g, '');
+        const instalacaoClean = instalacaoRaw.replace(/[<>:"/\\|?*-]/g, ''); // Remove chars inválidos incluindo hífen
 
-        // Data atual YYYYMMDD
-        const now = new Date();
-        const yyyy = now.getFullYear();
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const dd = String(now.getDate()).padStart(2, '0');
+        // Data do mês de referência YYYYMMDD (último dia do mês)
+        const refDate = new Date(mesReferencia + '-01T00:00:00');
+        const yyyy = refDate.getFullYear();
+        const mm = String(refDate.getMonth() + 1).padStart(2, '0');
+        // Último dia do mês de referência
+        const lastDay = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0);
+        const dd = String(lastDay.getDate()).padStart(2, '0');
         const dateStr = `${yyyy}${mm}${dd}`;
 
         const filename = `${instalacaoClean}_${nomeClean}_${dateStr}.pdf`;
