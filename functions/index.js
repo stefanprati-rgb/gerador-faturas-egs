@@ -2,7 +2,11 @@ const { onCall } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const puppeteer = require("puppeteer");
 
-exports.gerarFaturaPDF = onCall({ memory: "1GiB", timeoutSeconds: 120 }, async (request) => {
+exports.gerarFaturaPDF = onCall({
+    memory: "1GiB",
+    timeoutSeconds: 120,
+    cors: true
+}, async (request) => {
     const { html } = request.data;
 
     if (!html) {

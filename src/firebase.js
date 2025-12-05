@@ -1,15 +1,15 @@
-import { initializeApp } from 'firebase/app';
-import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-
-// TODO: Preencha com suas chaves do Firebase Console
 const firebaseConfig = {
-    apiKey: "PREENCHA_AQUI",
+    apiKey: "AIzaSyACHPZIQumMPFtbnfbKgBkIXFAqc-g8YS4",
     authDomain: "gerador-faturas-egs.firebaseapp.com",
     projectId: "gerador-faturas-egs",
-    storageBucket: "gerador-faturas-egs.appspot.com",
-    messagingSenderId: "PREENCHA_AQUI",
-    appId: "PREENCHA_AQUI"
+    storageBucket: "gerador-faturas-egs.firebasestorage.app",
+    messagingSenderId: "77864961772",
+    appId: "1:77864961772:web:e39536de2f8c7dcc0707c9",
+    measurementId: "G-H0TKZR626W"
 };
+
+import { initializeApp } from 'firebase/app';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const app = initializeApp(firebaseConfig);
 const functions = getFunctions(app);

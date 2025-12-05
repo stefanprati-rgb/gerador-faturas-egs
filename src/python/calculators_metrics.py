@@ -8,9 +8,9 @@ from datetime import datetime
 # Constantes de Fallback e Ambientais
 CO2_PER_KWH = 0.07
 TREES_PER_TON_CO2 = 8
-# Valores médios 2025 baseados em principais distribuidoras
-FALLBACK_TARIFA_DIST = 0.85  # Média nacional 2025
-FALLBACK_TARIFA_COMP_EV = 0.75  # Tarifa típica EGS
+# Valores médios 2025 baseados em principais distribuidoras (Atualizado: Reflete média real da planilha)
+FALLBACK_TARIFA_DIST = 1.13  # Antes: 0.85
+FALLBACK_TARIFA_COMP_EV = 0.85  # Antes: 0.75
 FALLBACK_FIO_B_PERCENTUAL = 0.28  # 28% da tarifa total
 
 # Percentuais do Fio B por ano (Resolução Normativa ANEEL)
@@ -125,8 +125,18 @@ def compute_metrics(row, cols_map, vencimento_iso):
         # Engenharia reversa da tarifa efetiva para exibição
         tarifa_egs_efetiva = (total_pagar_egs / comp_qtd) if comp_qtd > 0 else 0.0
     else:
+        # Cenário B: Cálculo por tarifa (Risco de divergência)
         total_pagar_egs = comp_qtd * tarifa_egs
         tarifa_egs_efetiva = tarifa_egs
+        
+        # Adiciona alerta discreto se não houver boleto na planilha
+        validations.append({
+            "type": "info",
+            "severity": "info",
+            "title": "Cálculo Estimado (Cenário B)",
+            "message": "Valor do boleto calculado pelo sistema (Crédito x Tarifa).",
+            "details": f"A planilha não forneceu a coluna 'Boleto Hube'. Usando tarifa R$ {tarifa_egs:.4f}."
+        })
 
     # --- 4. Economia ---
     custo_sem_gd_calculado = valor_consumo_sem_gd + dist_outros
