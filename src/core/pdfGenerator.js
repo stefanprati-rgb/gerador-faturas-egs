@@ -38,12 +38,28 @@ class PDFGenerator {
         // Preencher template
         await this.fillTemplate(client, mesReferencia);
 
-        // Gerar nome do arquivo de forma defensiva para evitar crash por nome/instalacao nulo
-        // [CORREÇÃO APLICADA] Tratamento defensivo de null para nome e instalação.
-        const nomeBase = (client.nome || 'Cliente').split(' ')[0];
-        const instalacaoBase = client.instalacao || 'Fatura';
-        const nomeClean = sanitizeFilename(nomeBase);
-        const filename = `Fatura_${instalacaoBase}_${nomeClean}.pdf`;
+        // Gerar nome do arquivo (Padrão: Instalação_Nome_Data)
+        // Solicitado: 1052027_IGREJA DO EVANGELHO QUADRANGULAR_20251204
+        const nomeRaw = client.nome || 'Cliente';
+        const instalacaoRaw = String(client.instalacao || '000000');
+
+        // Sanitização customizada: Mantém espaços, remove caracteres inválidos e acentos
+        const nomeClean = nomeRaw
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[<>:"/\\|?*]/g, '') // Remove chars inválidos de arquivo
+            .replace(/\s+/g, ' ') // Normaliza espaços
+            .trim();
+
+        const instalacaoClean = instalacaoRaw.replace(/[<>:"/\\|?*]/g, '');
+
+        // Data atual YYYYMMDD
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}${mm}${dd}`;
+
+        const filename = `${instalacaoClean}_${nomeClean}_${dateStr}.pdf`;
 
         // Configurações do html2pdf
         const opt = {
