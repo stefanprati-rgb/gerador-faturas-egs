@@ -6,15 +6,118 @@ from datetime import datetime
 import re
 from typing import Optional, Dict, Any
 
-# Importa o calculador (que agora está em Modo Espelho)
-from .calculators_metrics import compute_metrics, to_num
+# =================================================================
+# MÓDULO DE CÁLCULOS INTEGRADO (CORREÇÃO PYODIDE)
+# =================================================================
+
+CO2_PER_KWH = 0.07
+TREES_PER_TON_CO2 = 8
+
+def to_num(val):
+    """
+    Converte valores para float de forma segura, suportando:
+    - Padrão Brasileiro: 1.000,00
+    - Padrão Americano/Excel: 1,000.00 ou 1000.00
+    """
+    if pd.isna(val) or val == '': return 0.0
+    
+    try:
+        # Se já for número (int ou float), retorna direto
+        if isinstance(val, (int, float)): 
+            return float(val)
+        
+        val_str = str(val).strip()
+        
+        # Remoção de símbolos de moeda e espaços extras
+        val_str = val_str.replace('R$', '').replace(' ', '')
+
+        # Lógica de Detecção de Formato
+        if ',' in val_str and '.' in val_str:
+            # Formato misto detectado (ex: 1.200,50 ou 1,200.50)
+            if val_str.rfind(',') > val_str.rfind('.'):
+                # Padrão BR (vírgula no final): 1.200,50 -> Remove ponto, troca vírgula
+                val_str = val_str.replace('.', '').replace(',', '.')
+            else:
+                # Padrão US (ponto no final): 1,200.50 -> Remove vírgula
+                val_str = val_str.replace(',', '')
+        elif ',' in val_str:
+            # Apenas vírgula (ex: 1200,50) -> Assume decimal BR
+            val_str = val_str.replace(',', '.')
+        # Se tiver apenas ponto (ex: 750.02), o Python já entende nativamente
+        
+        return float(val_str)
+    except Exception as e:
+        return 0.0
+
+def compute_metrics(row, cols_map, vencimento_iso):
+    """
+    Prepara os dados para o PDF seguindo a regra "Padrão Ouro".
+    """
+    def get(key, default=0.0):
+        col = cols_map.get(key)
+        return to_num(row.get(col, default)) if col else default
+
+    # --- 1. LEITURA DOS VALORES FINANCEIROS REAIS ---
+    dist_total_real = get('fatura_c_gd') 
+    egs_total_real = get('boleto_ev')
+    consumo_qtd = get('consumo_qtd')
+    comp_qtd = get('comp_qtd')
+
+    # --- 2. ENGENHARIA REVERSA PARA "ENFEITAR" O PDF ---
+    if consumo_qtd > 0 and dist_total_real > 0:
+        tarifa_cons_visual = dist_total_real / consumo_qtd
+        if tarifa_cons_visual > 10: tarifa_cons_visual = 0.0
+    else:
+        tarifa_cons_visual = 0.0
+
+    if comp_qtd > 0 and egs_total_real > 0:
+        tarifa_credito_visual = egs_total_real / comp_qtd
+    else:
+        tarifa_credito_visual = 0.0
+
+    # --- 3. ESTIMATIVA DE ECONOMIA ---
+    custo_com_solar = dist_total_real + egs_total_real
+    if consumo_qtd > 0:
+        custo_sem_solar = consumo_qtd * 1.15
+    else:
+        custo_sem_solar = custo_com_solar * 1.10
+
+    economia_mes = custo_sem_solar - custo_com_solar
+    if economia_mes < 0: economia_mes = 0.0
+
+    # --- 4. RETORNO DOS DADOS FORMATADOS ---
+    def r(x, d=2): return round(float(x or 0), d)
+
+    return {
+        "dist_consumo_qtd": r(consumo_qtd),
+        "dist_consumo_tar": r(tarifa_cons_visual, 4),
+        "dist_consumo_total": r(dist_total_real),     
+        "dist_comp_qtd": 0, "dist_comp_tar": 0, "dist_comp_total": 0, "dist_outros": 0,
+        "dist_total": r(dist_total_real),             
+        "det_credito_qtd": r(comp_qtd),
+        "det_credito_tar": r(tarifa_credito_visual, 4),
+        "det_credito_total": r(egs_total_real),         
+        "det_total_contrib": r(egs_total_real),
+        "totalPagar": r(egs_total_real),
+        "econ_total_sem": r(custo_sem_solar),
+        "econ_total_com": r(custo_com_solar),
+        "economiaMes": r(economia_mes),
+        "co2Evitado": r(consumo_qtd * CO2_PER_KWH),
+        "arvoresEquivalentes": r((consumo_qtd * CO2_PER_KWH / 1000.0) * TREES_PER_TON_CO2, 1),
+        "vencimento_iso": vencimento_iso,
+        "emissao_iso": datetime.now().strftime('%Y-%m-%d')
+    }
+
+# =================================================================
+# FIM DO MÓDULO INTEGRADO
+# =================================================================
 
 # Suprime warnings do openpyxl
 python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 # Definição das Colunas
 COLUMNS_MAP = {
-    'ref': ["REF", "Mês de Referência", "Competência", "REF (sempre dia 01 de cada mês)"],
+    'ref': ["REF", "Mês de Referência", "Competência"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
     'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
     'doc': ["Documento", "CPF/CNPJ", "CPF", "CNPJ"],
@@ -25,7 +128,6 @@ COLUMNS_MAP = {
     'tarifa_comp_dist': ["TARIFA DE ENERGIA COMPENSADA", "Tarifa Fio B", "Tarifa Compensação"],
     'fatura_c_gd': ["FATURA C/GD", "Saldo Próximo Mês", "Valor Fatura Distribuidora"],
     'boleto_ev': ["Boleto Hube", "Valor enviado para emissão", "Valor Cobrado"],
-    'desconto_praticado': ["Desconto Praticado", "Desconto Praticado (Sobre Tarifa Compensada ou Tarifa Cheia)", "Desconto"],
     'endereco': ["Endereço", "Logradouro", "Rua"],
     'bairro': ["Bairro"],
     'cidade': ["Cidade", "Município"],
@@ -37,7 +139,6 @@ COLUMNS_MAP = {
 def limpar_uc(valor):
     """Remove caracteres especiais da UC para comparação robusta (ex: 10/10232-7 -> 10102327)"""
     if not valor: return ""
-    # Mantém apenas letras e números
     return re.sub(r'[^a-zA-Z0-9]', '', str(valor)).upper()
 
 def safe_str(val):
@@ -55,22 +156,16 @@ def safe_parse_date(val):
 def find_sheet_and_header(xls, mandatory_cols, prefer_name=None):
     """Encontra a aba e a linha de cabeçalho correta procurando por colunas obrigatórias."""
     best_sheet = None
-    best_header_idx = 0
     
-    # Se tiver preferência, tenta ela primeiro
     sheets_to_try = xls.sheet_names
     if prefer_name:
-        # Ordena para tentar nomes similares primeiro
         sheets_to_try = sorted(sheets_to_try, key=lambda x: 0 if prefer_name.lower() in x.lower() else 1)
 
     for sheet in sheets_to_try:
         try:
-            # Lê as primeiras 20 linhas para achar o cabeçalho
             df_preview = pd.read_excel(xls, sheet_name=sheet, header=None, nrows=20)
-            
             for r in range(len(df_preview)):
                 row_vals = [str(v).strip().lower() for v in df_preview.iloc[r] if pd.notna(v)]
-                # Verifica se pelo menos uma das colunas obrigatórias está na linha
                 if any(m.lower() in row_vals for m in mandatory_cols):
                     return sheet, r
         except:
@@ -79,7 +174,6 @@ def find_sheet_and_header(xls, mandatory_cols, prefer_name=None):
     return None, 0
 
 def pick_col(df, *possibles):
-    """Retorna o nome da coluna do DataFrame que corresponde a uma das opções possíveis."""
     cols_lower = {str(c).strip().lower(): c for c in df.columns}
     for p in possibles:
         if p.lower() in cols_lower:
@@ -87,7 +181,6 @@ def pick_col(df, *possibles):
     return None
 
 def _norm(s):
-    """Normaliza strings para busca de colunas (remove acentos e espaços)"""
     return re.sub(r'[^a-zA-Z0-9]', '', str(s).lower())
 
 def _diagnosticar_colunas(df: pd.DataFrame) -> str:
@@ -99,7 +192,6 @@ def _diagnosticar_colunas(df: pd.DataFrame) -> str:
     return resultado
 
 def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
-    # Nível 1: Match exato normalizado
     termos_exatos = ["INSTALACAO", "INSTALAÇÃO", "Nº INSTALACAO", "UC", "CODIGO"]
     colunas_map = {_norm(col): col for col in df.columns}
     
@@ -107,11 +199,9 @@ def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
         if _norm(termo) in colunas_map:
             return colunas_map[_norm(termo)]
     
-    # Nível 2: Match parcial
     for col_norm, col_original in colunas_map.items():
         if "instal" in col_norm or "cod" in col_norm:
             return col_original
-            
     return None
 
 def _mapear_coluna_nome(df: pd.DataFrame) -> Optional[str]:
@@ -132,26 +222,20 @@ def criar_mapa_clientes(df_clientes: pd.DataFrame) -> Dict[str, str]:
     for idx, row in df_clientes.iterrows():
         raw_uc = str(row.get(col_uc, '')).strip()
         nome = str(row.get(col_nome, '')).strip()
-        
         if not raw_uc or not nome or raw_uc.lower() == 'nan':
             continue
-            
-        # Salva tanto a chave original quanto a limpa
         mapa[raw_uc] = nome
         chave_limpa = limpar_uc(raw_uc)
         if chave_limpa:
-            mapa[chave_limpa] = nome # Atalho para busca rápida
-    
+            mapa[chave_limpa] = nome 
     return mapa
 
 # --- ORQUESTRAÇÃO PRINCIPAL ---
 
 def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento_str):
     try:
-        # 1. Carregar o arquivo Excel
         xls = pd.ExcelFile(io.BytesIO(file_content), engine='openpyxl')
         
-        # 2. Localizar aba principal (Detalhe)
         aba_detalhe, header_idx_detalhe = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
         
         if not aba_detalhe:
@@ -160,7 +244,6 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         df = pd.read_excel(xls, sheet_name=aba_detalhe, header=header_idx_detalhe)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # 3. Mapeamento de Colunas
         cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()}
         col_instalacao_detalhe = _mapear_coluna_uc(df)
         
@@ -170,12 +253,10 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                 "details": _diagnosticar_colunas(df)
             })
 
-        # 4. CARREGAMENTO E MAPEAMENTO DE CLIENTES
         mapa_clientes = {}
         warnings = []
         
         aba_clientes = None
-        # Procura aba de clientes
         for sheet in xls.sheet_names:
             if 'info' in sheet.lower() and 'cliente' in sheet.lower():
                 aba_clientes = sheet; break
@@ -194,7 +275,6 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
             except Exception as e:
                 print(f"✗ ERRO ao processar aba clientes: {str(e)}")
 
-        # 5. Filtragem por Mês
         df_mes = df.copy()
         if cols_map['ref']:
             date_input = mes_referencia_str.strip()
@@ -207,28 +287,24 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                     (df['__ref_dt'].dt.month == mes_ref_dt.month)
                 ].copy()
             except:
-                pass # Se falhar filtro de data, tenta processar tudo ou retorna vazio depois
+                pass 
 
-        # Filtro de valor mínimo (se houver coluna de boleto)
         if cols_map.get('boleto_ev'):
             df_mes = df_mes[df_mes[cols_map['boleto_ev']].apply(to_num) >= 5].copy()
 
         if df_mes.empty:
             return json.dumps({"error": f"Nenhum registro encontrado para {mes_referencia_str}."})
 
-        # 6. Processamento Linha a Linha
         clientes = []
 
         for idx, row in df_mes.iterrows():
             try:
-                # Extração e Limpeza da Chave
                 raw_id = str(row.get(col_instalacao_detalhe, '')).strip()
                 id_limpo = limpar_uc(raw_id)
                 
                 nome_cliente = None
                 status_mapeamento = "OK"
                 
-                # Busca Inteligente (Tenta chave exata, depois chave limpa)
                 if raw_id in mapa_clientes:
                     nome_cliente = mapa_clientes[raw_id]
                 elif id_limpo in mapa_clientes:
@@ -247,10 +323,8 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                         "details": {"uc_buscada": raw_id}
                     })
 
-                # Métricas (Agora em Modo Espelho)
                 metrics = compute_metrics(row, cols_map, vencimento_str)
                 
-                # --- CONSTRUÇÃO DO ENDEREÇO (MODIFICADO) ---
                 ends = []
                 for k in ['endereco', 'bairro', 'cidade']:
                     col_name = cols_map.get(k)
@@ -258,17 +332,15 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                         val = safe_str(row.get(col_name))
                         if val: ends.append(val)
                 
-                # Se a lista estiver vazia, retorna string vazia (sem "Endereço não informado")
                 endereco_completo = " - ".join(ends)
 
-                # Construção do Objeto Final
                 cliente = {
                     "raw_id": raw_id,
                     "nome": final_client_name,
                     "status_mapeamento": status_mapeamento,
                     "documento": safe_str(row.get(cols_map.get('doc'))),
                     "instalacao": raw_id,
-                    "endereco": endereco_completo, # Agora pode ir vazio
+                    "endereco": endereco_completo,
                     "num_conta": safe_str(row.get(cols_map.get('num_conta'))),
                     "economiaTotal": metrics['economiaMes'],
                 }
