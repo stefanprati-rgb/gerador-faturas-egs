@@ -90,7 +90,7 @@ python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl'
 
 # COLUMNS_MAP AJUSTADO COM SEUS NOMES REAIS
 COLUMNS_MAP = {
-    'ref': ["REF", "Mês de Referência", "Competência", "Data", "Data Ref", "Referencia", "Mês", "Referência", "Data Emissao"],
+    'ref': ["REF (sempre dia 01 de cada mês)", "REF", "Mês de Referência", "Competência", "Data", "Data Ref", "Referencia", "Mês", "Referência", "Data Emissao"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
     # Dados Cadastrais
     'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
