@@ -92,24 +92,24 @@ class App {
         };
 
         try {
-            updateProgress('Inicializando motor Python...', 0);
+            updateProgress('Iniciando sistema...', 0);
 
             await excelProcessor.init((status) => {
                 console.log(`[Pyodide Background]: ${status}`);
 
-                // Mapear mensagens de status para progresso
+                // Mensagens amigáveis relacionadas ao mercado de energia
                 if (status.includes('Carregando Pyodide')) {
-                    updateProgress('Carregando Pyodide...', 20);
+                    updateProgress('Ajustando painéis solares...', 20);
                 } else if (status.includes('Carregando pacotes')) {
-                    updateProgress('Carregando bibliotecas Python...', 40);
+                    updateProgress('Conectando à distribuidora...', 40);
                 } else if (status.includes('Instalando openpyxl')) {
-                    updateProgress('Instalando openpyxl...', 60);
+                    updateProgress('Calibrando medidores...', 60);
                 } else if (status.includes('Configurando motor')) {
-                    updateProgress('Configurando processador...', 80);
+                    updateProgress('Sincronizando créditos de energia...', 80);
                 }
             });
 
-            updateProgress('Motor Python pronto!', 100);
+            updateProgress('Sistema pronto!', 100);
             console.log('Motor Python pronto para uso!');
 
             // Esconder overlay após 500ms
@@ -119,7 +119,7 @@ class App {
 
         } catch (e) {
             console.warn('Pré-carregamento do Pyodide falhou (será tentado novamente ao usar a ferramenta).', e);
-            updateProgress('Erro ao carregar motor Python', 0);
+            updateProgress('Erro ao inicializar sistema', 0);
 
             // Esconder overlay após 2s em caso de erro
             setTimeout(() => {
