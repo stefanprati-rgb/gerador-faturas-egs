@@ -73,13 +73,58 @@ class App {
      */
     async preloadEngine() {
         console.log('Iniciando pré-carregamento do Pyodide...');
+
+        // Elementos do indicador de progresso
+        const progressOverlay = document.getElementById('progress-overlay');
+        const progressStatus = document.getElementById('progress-status');
+        const progressDetail = document.getElementById('progress-detail');
+        const progressBar = document.getElementById('progress-bar');
+
+        // Mostrar overlay de progresso
+        if (progressOverlay) {
+            progressOverlay.classList.remove('hidden');
+        }
+
+        const updateProgress = (status, percent) => {
+            if (progressStatus) progressStatus.textContent = status;
+            if (progressDetail) progressDetail.textContent = `${percent}%`;
+            if (progressBar) progressBar.style.width = `${percent}%`;
+        };
+
         try {
+            updateProgress('Inicializando motor Python...', 0);
+
             await excelProcessor.init((status) => {
                 console.log(`[Pyodide Background]: ${status}`);
+
+                // Mapear mensagens de status para progresso
+                if (status.includes('Carregando Pyodide')) {
+                    updateProgress('Carregando Pyodide...', 20);
+                } else if (status.includes('Carregando pacotes')) {
+                    updateProgress('Carregando bibliotecas Python...', 40);
+                } else if (status.includes('Instalando openpyxl')) {
+                    updateProgress('Instalando openpyxl...', 60);
+                } else if (status.includes('Configurando motor')) {
+                    updateProgress('Configurando processador...', 80);
+                }
             });
+
+            updateProgress('Motor Python pronto!', 100);
             console.log('Motor Python pronto para uso!');
+
+            // Esconder overlay após 500ms
+            setTimeout(() => {
+                if (progressOverlay) progressOverlay.classList.add('hidden');
+            }, 500);
+
         } catch (e) {
             console.warn('Pré-carregamento do Pyodide falhou (será tentado novamente ao usar a ferramenta).', e);
+            updateProgress('Erro ao carregar motor Python', 0);
+
+            // Esconder overlay após 2s em caso de erro
+            setTimeout(() => {
+                if (progressOverlay) progressOverlay.classList.add('hidden');
+            }, 2000);
         }
     }
 
