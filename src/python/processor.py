@@ -183,7 +183,12 @@ def criar_mapa_completo_clientes(df_clientes: pd.DataFrame) -> Dict[str, Dict]:
     for field in ['nome', 'doc', 'endereco', 'bairro', 'cidade', 'num_conta']:
         cols_cli[field] = _mapear_coluna_generic(df_clientes, COLUMNS_MAP[field])
 
-    if not col_uc: return {}
+    if not col_uc: 
+        print("✗ ERRO: Coluna UC não encontrada na aba Infos Clientes")
+        return {}
+    
+    print(f"✓ Coluna UC encontrada: '{col_uc}'")
+    print(f"✓ Colunas mapeadas: {cols_cli}")
 
     mapa = {}
     for idx, row in df_clientes.iterrows():
@@ -191,10 +196,16 @@ def criar_mapa_completo_clientes(df_clientes: pd.DataFrame) -> Dict[str, Dict]:
         if not raw_uc or raw_uc.lower() == 'nan': continue
         ficha = {}
         for field, col_name in cols_cli.items():
-            if col_name: ficha[field] = safe_str(row.get(col_name))
+            if col_name: 
+                valor = safe_str(row.get(col_name))
+                ficha[field] = valor
+                if idx < 3:  # Debug primeiras 3 linhas
+                    print(f"  UC {raw_uc} - {field}: '{valor}' (coluna: {col_name})")
         mapa[raw_uc] = ficha
         chave_limpa = limpar_uc(raw_uc)
         if chave_limpa: mapa[chave_limpa] = ficha
+    
+    print(f"✓ Mapa criado com {len(mapa)} registros")
     return mapa
 
 def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento_str):
@@ -225,20 +236,35 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         # 2. Carregar Aba Clientes
         mapa_clientes = {}
         aba_clientes = None
+        
+        print(f"📋 Procurando aba de clientes. Abas disponíveis: {xls.sheet_names}")
+        
         for sheet in xls.sheet_names:
-            if 'info' in sheet.lower() and 'cliente' in sheet.lower(): aba_clientes = sheet; break
+            if 'info' in sheet.lower() and 'cliente' in sheet.lower(): 
+                aba_clientes = sheet
+                print(f"✓ Aba de clientes encontrada: '{aba_clientes}'")
+                break
         
         if not aba_clientes:
+            print("⚠ Aba 'Infos Clientes' não encontrada pelo nome, tentando busca por colunas...")
             aba_clientes, h_idx_cli = find_sheet_and_header(xls, ["Nome", "Razão Social", "Instalação"], prefer_name="Infos")
+            if aba_clientes:
+                print(f"✓ Aba encontrada por busca: '{aba_clientes}' (header linha {h_idx_cli})")
         else:
             _, h_idx_cli = find_sheet_and_header(xls, ["Nome", "Instalação"], prefer_name=aba_clientes)
+            print(f"✓ Header da aba '{aba_clientes}' na linha {h_idx_cli}")
             
         if aba_clientes:
             try:
                 df_cli = pd.read_excel(xls, sheet_name=aba_clientes, header=h_idx_cli)
+                print(f"✓ Aba '{aba_clientes}' carregada com {len(df_cli)} linhas")
+                print(f"  Colunas: {list(df_cli.columns[:10])}")
                 mapa_clientes = criar_mapa_completo_clientes(df_cli)
                 print(f"✓ Mapa de clientes carregado: {len(mapa_clientes)} registros.")
-            except: pass
+            except Exception as e:
+                print(f"✗ ERRO ao carregar aba clientes: {str(e)}")
+        else:
+            print("✗ AVISO: Nenhuma aba de clientes encontrada!")
 
         # 3. Filtrar por Mês (AGORA COM LOG E TRATAMENTO DE ERRO)
         df_mes = pd.DataFrame()
