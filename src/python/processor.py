@@ -88,7 +88,7 @@ def compute_metrics(row, cols_map, vencimento_iso):
 # Suprime warnings do openpyxl
 python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-# COLUMNS_MAP AJUSTADO COM SEUS NOMES REAIS
+# COLUMNS_MAP AJUSTADO COM NOMES REAIS DAS COLUNAS DO RELATÓRIO
 COLUMNS_MAP = {
     'ref': ["REF (sempre dia 01 de cada mês)", "REF", "Mês de Referência", "Competência", "Data", "Data Ref", "Referencia", "Mês", "Referência", "Data Emissao"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
@@ -106,8 +106,18 @@ COLUMNS_MAP = {
     'tarifa_comp_ev': ["TARIFA_Comp_FP", "Tarifa EGS", "Tarifa Acordada"],
     'tarifa_comp_dist': ["TARIFA DE ENERGIA COMPENSADA", "Tarifa Fio B", "Tarifa Compensação"],
     'fatura_c_gd': ["FATURA C/GD", "Saldo Próximo Mês", "Valor Fatura Distribuidora"],
-    'boleto_ev': ["valorTotal", "Boleto Hube", "Valor enviado para emissão", "Valor Cobrado", "Valor Boleto"]
+    # BOLETO EGS - Priorizar colunas com valor FINAL do boleto (após desconto)
+    'boleto_ev': [
+        "Boleto Hube definido para a ref. Mensal",  # ← PRIORIDADE 1: Valor final após desconto
+        "Valor enviado para emissão",               # ← PRIORIDADE 2: Mesmo valor
+        "Boleto Emitido Gera StarkBank",            # ← PRIORIDADE 3: Valor emitido
+        "Boleto PAGO StarkBank",                    # ← PRIORIDADE 4: Valor pago
+        "valorTotal",                               # Fallback genérico (nem sempre existe)
+        "Valor Cobrado",
+        "Valor Boleto"
+    ]
 }
+
 
 def limpar_uc(valor):
     if not valor: return ""
@@ -221,6 +231,10 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         
         cols_map_det = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()}
         col_inst_det = _mapear_coluna_uc(df)
+        
+        # Log de debug para verificar mapeamento do boleto
+        print(f"🔍 Coluna mapeada para 'boleto_ev': {cols_map_det.get('boleto_ev')}")
+        print(f"🔍 Coluna mapeada para 'fatura_c_gd': {cols_map_det.get('fatura_c_gd')}")
         
         if not col_inst_det:
             return json.dumps({"error": "Coluna Instalação não achada no detalhe.", "details": _diagnosticar_colunas(df)})
