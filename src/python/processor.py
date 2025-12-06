@@ -247,11 +247,12 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
         
         if not aba_clientes:
             print("⚠ Aba 'Infos Clientes' não encontrada pelo nome, tentando busca por colunas...")
-            aba_clientes, h_idx_cli = find_sheet_and_header(xls, ["Nome", "Razão Social", "Instalação"], prefer_name="Infos")
+            aba_clientes, h_idx_cli = find_sheet_and_header(xls, ["Nome/Razão Social", "CPF/CNPJ", "Instalação"], prefer_name="Infos")
             if aba_clientes:
                 print(f"✓ Aba encontrada por busca: '{aba_clientes}' (header linha {h_idx_cli})")
         else:
-            _, h_idx_cli = find_sheet_and_header(xls, ["Nome", "Instalação"], prefer_name=aba_clientes)
+            # Para aba Infos Clientes, procurar por colunas específicas
+            _, h_idx_cli = find_sheet_and_header(xls, ["Nome/Razão Social", "CPF/CNPJ", "Instalação"], prefer_name=aba_clientes)
             print(f"✓ Header da aba '{aba_clientes}' na linha {h_idx_cli}")
             
         if aba_clientes:
