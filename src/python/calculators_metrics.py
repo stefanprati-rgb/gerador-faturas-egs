@@ -47,6 +47,13 @@ def compute_metrics(row, cols_map, vencimento_iso):
     tarifa_egs = get('tarifa_comp_ev') # Tarifa cobrada pelo EGS
     if tarifa_egs <= 0: tarifa_egs = FALLBACK_TARIFA_COMP_EV
 
+    # --- 1.1. Extração do Desconto Praticado ---
+    # Fórmula da planilha: Boleto = Crédito × Tarifa × (1 - Desconto)
+    desconto_praticado = get('desconto_praticado')
+    # Validação: desconto deve estar entre 0 e 1 (0% a 100%)
+    if desconto_praticado < 0 or desconto_praticado > 1:
+        desconto_praticado = 0.0
+
     # --- VALIDAÇÕES DE DADOS ---
     validations = []
     
@@ -125,17 +132,19 @@ def compute_metrics(row, cols_map, vencimento_iso):
         # Engenharia reversa da tarifa efetiva para exibição
         tarifa_egs_efetiva = (total_pagar_egs / comp_qtd) if comp_qtd > 0 else 0.0
     else:
-        # Cenário B: Cálculo por tarifa (Risco de divergência)
-        total_pagar_egs = comp_qtd * tarifa_egs
-        tarifa_egs_efetiva = tarifa_egs
+        # Cenário B: Cálculo por tarifa COM DESCONTO (fórmula idêntica à planilha)
+        # Fórmula: Boleto = Crédito × Tarifa × (1 - Desconto)
+        total_pagar_egs = comp_qtd * tarifa_egs * (1 - desconto_praticado)
+        tarifa_egs_efetiva = tarifa_egs * (1 - desconto_praticado)
         
         # Adiciona alerta discreto se não houver boleto na planilha
+        desc_pct = desconto_praticado * 100
         validations.append({
             "type": "info",
             "severity": "info",
             "title": "Cálculo Estimado (Cenário B)",
-            "message": "Valor do boleto calculado pelo sistema (Crédito x Tarifa).",
-            "details": f"A planilha não forneceu a coluna 'Boleto Hube'. Usando tarifa R$ {tarifa_egs:.4f}."
+            "message": f"Valor do boleto calculado pelo sistema (Crédito x Tarifa x (1 - {desc_pct:.0f}% desconto)).",
+            "details": f"Fórmula: {comp_qtd:.0f} kWh × R$ {tarifa_egs:.4f} × (1 - {desc_pct:.0f}%) = R$ {total_pagar_egs:.2f}"
         })
 
     # --- 4. Economia ---
@@ -154,6 +163,7 @@ def compute_metrics(row, cols_map, vencimento_iso):
         "det_credito_qtd": r(comp_qtd), "det_credito_tar": r(tarifa_egs_efetiva, 4), "det_credito_total": r(total_pagar_egs),
         "totalPagar": r(total_pagar_egs), "econ_total_sem": r(custo_sem_gd_calculado), "econ_total_com": r(custo_com_gd),
         "economiaMes": r(economia_mes),
+        "desconto_praticado": r(desconto_praticado * 100, 0),  # Percentual (ex: 25 = 25%)
         "co2Evitado": r(consumo_qtd * CO2_PER_KWH),
         "arvoresEquivalentes": r((consumo_qtd * CO2_PER_KWH / 1000.0) * TREES_PER_TON_CO2, 1),
         "vencimento_iso": vencimento_iso,
