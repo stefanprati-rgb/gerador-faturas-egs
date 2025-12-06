@@ -7,7 +7,7 @@ import re
 from typing import Optional, Dict, Any
 
 # =================================================================
-# MÓDULO DE CÁLCULOS INTEGRADO (CORREÇÃO PYODIDE)
+# MÓDULO DE CÁLCULOS INTEGRADO (MODO ESPELHO)
 # =================================================================
 
 CO2_PER_KWH = 0.07
@@ -22,48 +22,38 @@ def to_num(val):
     if pd.isna(val) or val == '': return 0.0
     
     try:
-        # Se já for número (int ou float), retorna direto
-        if isinstance(val, (int, float)): 
-            return float(val)
+        if isinstance(val, (int, float)): return float(val)
         
         val_str = str(val).strip()
-        
-        # Remoção de símbolos de moeda e espaços extras
         val_str = val_str.replace('R$', '').replace(' ', '')
 
-        # Lógica de Detecção de Formato
         if ',' in val_str and '.' in val_str:
-            # Formato misto detectado (ex: 1.200,50 ou 1,200.50)
-            if val_str.rfind(',') > val_str.rfind('.'):
-                # Padrão BR (vírgula no final): 1.200,50 -> Remove ponto, troca vírgula
+            if val_str.rfind(',') > val_str.rfind('.'): # BR: 1.200,50
                 val_str = val_str.replace('.', '').replace(',', '.')
-            else:
-                # Padrão US (ponto no final): 1,200.50 -> Remove vírgula
+            else: # US: 1,200.50
                 val_str = val_str.replace(',', '')
-        elif ',' in val_str:
-            # Apenas vírgula (ex: 1200,50) -> Assume decimal BR
+        elif ',' in val_str: # Apenas vírgula -> BR
             val_str = val_str.replace(',', '.')
-        # Se tiver apenas ponto (ex: 750.02), o Python já entende nativamente
         
         return float(val_str)
-    except Exception as e:
+    except:
         return 0.0
 
 def compute_metrics(row, cols_map, vencimento_iso):
     """
-    Prepara os dados para o PDF seguindo a regra "Padrão Ouro".
+    Prepara os dados para o PDF priorizando os valores já calculados na planilha.
     """
     def get(key, default=0.0):
         col = cols_map.get(key)
         return to_num(row.get(col, default)) if col else default
 
-    # --- 1. LEITURA DOS VALORES FINANCEIROS REAIS ---
+    # 1. Leitura dos Valores Financeiros Reais (Padrão Ouro)
     dist_total_real = get('fatura_c_gd') 
     egs_total_real = get('boleto_ev')
     consumo_qtd = get('consumo_qtd')
     comp_qtd = get('comp_qtd')
 
-    # --- 2. ENGENHARIA REVERSA PARA "ENFEITAR" O PDF ---
+    # 2. Engenharia Reversa Visual (Para preencher tabelas do PDF)
     if consumo_qtd > 0 and dist_total_real > 0:
         tarifa_cons_visual = dist_total_real / consumo_qtd
         if tarifa_cons_visual > 10: tarifa_cons_visual = 0.0
@@ -75,17 +65,16 @@ def compute_metrics(row, cols_map, vencimento_iso):
     else:
         tarifa_credito_visual = 0.0
 
-    # --- 3. ESTIMATIVA DE ECONOMIA ---
+    # 3. Estimativa de Economia (Se não houver na planilha)
     custo_com_solar = dist_total_real + egs_total_real
     if consumo_qtd > 0:
-        custo_sem_solar = consumo_qtd * 1.15
+        custo_sem_solar = consumo_qtd * 1.15 # Estimativa Tarifa Cheia (~R$ 1.15)
     else:
         custo_sem_solar = custo_com_solar * 1.10
 
     economia_mes = custo_sem_solar - custo_com_solar
     if economia_mes < 0: economia_mes = 0.0
 
-    # --- 4. RETORNO DOS DADOS FORMATADOS ---
     def r(x, d=2): return round(float(x or 0), d)
 
     return {
@@ -109,35 +98,34 @@ def compute_metrics(row, cols_map, vencimento_iso):
     }
 
 # =================================================================
-# FIM DO MÓDULO INTEGRADO
+# PROCESSADOR PRINCIPAL
 # =================================================================
 
 # Suprime warnings do openpyxl
 python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-# Definição das Colunas
 COLUMNS_MAP = {
     'ref': ["REF", "Mês de Referência", "Competência"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
+    # Dados Cadastrais (Buscados na aba Clientes)
     'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
     'doc': ["Documento", "CPF/CNPJ", "CPF", "CNPJ"],
+    'endereco': ["Endereço", "Logradouro", "Rua"],
+    'bairro': ["Bairro"],
+    'cidade': ["Cidade", "Município"],
+    'num_conta': ["Número da conta", "Conta Contrato", "Conta"],
+    # Dados Financeiros (Buscados na aba Detalhe)
     'consumo_qtd': ["CONSUMO_FP", "Energia consumida - Fora ponta - quantidade", "Consumo KWh"],
     'comp_qtd': ["CRÉD. CONSUMIDO_FP", "Creditos consumidos - Fora ponta - quantidade", "Energia Compensada"],
     'tarifa_consumo': ["TARIFA FP", "Energia consumida - Fora ponta - tarifa", "Tarifa Cheia"],
     'tarifa_comp_ev': ["TARIFA_Comp_FP", "Tarifa EGS", "Tarifa Acordada"],
     'tarifa_comp_dist': ["TARIFA DE ENERGIA COMPENSADA", "Tarifa Fio B", "Tarifa Compensação"],
     'fatura_c_gd': ["FATURA C/GD", "Saldo Próximo Mês", "Valor Fatura Distribuidora"],
-    'boleto_ev': ["Boleto Hube", "Valor enviado para emissão", "Valor Cobrado"],
-    'endereco': ["Endereço", "Logradouro", "Rua"],
-    'bairro': ["Bairro"],
-    'cidade': ["Cidade", "Município"],
-    'num_conta': ["Número da conta", "Conta Contrato"]
+    'boleto_ev': ["Boleto Hube", "Valor enviado para emissão", "Valor Cobrado"]
 }
 
-# --- FUNÇÕES AUXILIARES ---
-
 def limpar_uc(valor):
-    """Remove caracteres especiais da UC para comparação robusta (ex: 10/10232-7 -> 10102327)"""
+    """Remove caracteres especiais da UC (ex: 10/10232-7 -> 10102327)"""
     if not valor: return ""
     return re.sub(r'[^a-zA-Z0-9]', '', str(valor)).upper()
 
@@ -154,9 +142,6 @@ def safe_parse_date(val):
         return None
 
 def find_sheet_and_header(xls, mandatory_cols, prefer_name=None):
-    """Encontra a aba e a linha de cabeçalho correta procurando por colunas obrigatórias."""
-    best_sheet = None
-    
     sheets_to_try = xls.sheet_names
     if prefer_name:
         sheets_to_try = sorted(sheets_to_try, key=lambda x: 0 if prefer_name.lower() in x.lower() else 1)
@@ -170,14 +155,12 @@ def find_sheet_and_header(xls, mandatory_cols, prefer_name=None):
                     return sheet, r
         except:
             continue
-            
     return None, 0
 
 def pick_col(df, *possibles):
     cols_lower = {str(c).strip().lower(): c for c in df.columns}
     for p in possibles:
-        if p.lower() in cols_lower:
-            return cols_lower[p.lower()]
+        if p.lower() in cols_lower: return cols_lower[p.lower()]
     return None
 
 def _norm(s):
@@ -185,163 +168,157 @@ def _norm(s):
 
 def _diagnosticar_colunas(df: pd.DataFrame) -> str:
     colunas = list(df.columns)
-    colunas_mostrar = colunas[:10]
-    resultado = f"Colunas disponíveis ({len(colunas)} total): {', '.join(colunas_mostrar)}"
-    if len(colunas) > 10:
-        resultado += f"... (+{len(colunas)-10} mais)"
-    return resultado
+    mostrar = colunas[:10]
+    res = f"Colunas ({len(colunas)}): {', '.join(mostrar)}"
+    if len(colunas) > 10: res += "..."
+    return res
 
 def _mapear_coluna_uc(df: pd.DataFrame) -> Optional[str]:
-    termos_exatos = ["INSTALACAO", "INSTALAÇÃO", "Nº INSTALACAO", "UC", "CODIGO"]
+    termos = ["INSTALACAO", "INSTALAÇÃO", "Nº INSTALACAO", "UC", "CODIGO"]
     colunas_map = {_norm(col): col for col in df.columns}
-    
-    for termo in termos_exatos:
-        if _norm(termo) in colunas_map:
-            return colunas_map[_norm(termo)]
-    
-    for col_norm, col_original in colunas_map.items():
-        if "instal" in col_norm or "cod" in col_norm:
-            return col_original
+    for t in termos:
+        if _norm(t) in colunas_map: return colunas_map[_norm(t)]
+    for c_norm, c_orig in colunas_map.items():
+        if "instal" in c_norm or "cod" in c_norm: return c_orig
     return None
 
-def _mapear_coluna_nome(df: pd.DataFrame) -> Optional[str]:
-    termos_nome_norm = [_norm(c) for c in COLUMNS_MAP['nome']]
-    for nome_coluna_original in df.columns:
-        if _norm(nome_coluna_original) in termos_nome_norm:
-             return nome_coluna_original
+def _mapear_coluna_generic(df: pd.DataFrame, keys_list) -> Optional[str]:
+    colunas_map = {_norm(col): col for col in df.columns}
+    for k in keys_list:
+        if _norm(k) in colunas_map: return colunas_map[_norm(k)]
     return None
 
-def criar_mapa_clientes(df_clientes: pd.DataFrame) -> Dict[str, str]:
+def criar_mapa_completo_clientes(df_clientes: pd.DataFrame) -> Dict[str, Dict]:
+    """Cria um mapa completo: ID -> {Nome, CNPJ, Endereço, Conta, etc}"""
     col_uc = _mapear_coluna_uc(df_clientes)
-    col_nome = _mapear_coluna_nome(df_clientes)
+    cols_cli = {}
+    for field in ['nome', 'doc', 'endereco', 'bairro', 'cidade', 'num_conta']:
+        cols_cli[field] = _mapear_coluna_generic(df_clientes, COLUMNS_MAP[field])
 
-    if not col_uc or not col_nome:
-        return {}
+    if not col_uc: return {}
 
     mapa = {}
     for idx, row in df_clientes.iterrows():
         raw_uc = str(row.get(col_uc, '')).strip()
-        nome = str(row.get(col_nome, '')).strip()
-        if not raw_uc or not nome or raw_uc.lower() == 'nan':
-            continue
-        mapa[raw_uc] = nome
+        if not raw_uc or raw_uc.lower() == 'nan': continue
+        
+        # Ficha Cadastral Completa
+        ficha = {}
+        for field, col_name in cols_cli.items():
+            if col_name:
+                ficha[field] = safe_str(row.get(col_name))
+        
+        # Armazena pela chave original e pela chave limpa
+        mapa[raw_uc] = ficha
         chave_limpa = limpar_uc(raw_uc)
         if chave_limpa:
-            mapa[chave_limpa] = nome 
+            mapa[chave_limpa] = ficha
+            
     return mapa
-
-# --- ORQUESTRAÇÃO PRINCIPAL ---
 
 def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento_str):
     try:
         xls = pd.ExcelFile(io.BytesIO(file_content), engine='openpyxl')
         
-        aba_detalhe, header_idx_detalhe = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
-        
-        if not aba_detalhe:
-            return json.dumps({"error": "Aba 'Detalhe Por UC' não encontrada."})
+        # 1. Carregar Aba Detalhe (Dados Financeiros)
+        aba_detalhe, h_idx_det = find_sheet_and_header(xls, ["REF", "Instalação"], prefer_name="Detalhe")
+        if not aba_detalhe: return json.dumps({"error": "Aba 'Detalhe Por UC' não encontrada."})
 
-        df = pd.read_excel(xls, sheet_name=aba_detalhe, header=header_idx_detalhe)
+        df = pd.read_excel(xls, sheet_name=aba_detalhe, header=h_idx_det)
         df.columns = [str(c).strip() for c in df.columns]
-
-        cols_map = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()}
-        col_instalacao_detalhe = _mapear_coluna_uc(df)
         
-        if not col_instalacao_detalhe:
-            return json.dumps({
-                "error": "Coluna de Instalação não identificada no detalhe.",
-                "details": _diagnosticar_colunas(df)
-            })
+        cols_map_det = {k: pick_col(df, *v) for k, v in COLUMNS_MAP.items()}
+        col_inst_det = _mapear_coluna_uc(df)
+        
+        if not col_inst_det:
+            return json.dumps({"error": "Coluna Instalação não achada no detalhe.", "details": _diagnosticar_colunas(df)})
 
+        # 2. Carregar Aba Clientes (Dados Cadastrais)
         mapa_clientes = {}
-        warnings = []
-        
         aba_clientes = None
         for sheet in xls.sheet_names:
-            if 'info' in sheet.lower() and 'cliente' in sheet.lower():
-                aba_clientes = sheet; break
+            if 'info' in sheet.lower() and 'cliente' in sheet.lower(): aba_clientes = sheet; break
         
         if not aba_clientes:
-            aba_clientes, h_idx = find_sheet_and_header(xls, ["Nome", "Razão Social", "Instalação"], prefer_name="Infos")
-            header_idx_cli = h_idx
+            aba_clientes, h_idx_cli = find_sheet_and_header(xls, ["Nome", "Razão Social", "Instalação"], prefer_name="Infos")
         else:
-            _, header_idx_cli = find_sheet_and_header(xls, ["Nome", "Instalação"], prefer_name=aba_clientes)
-        
+            _, h_idx_cli = find_sheet_and_header(xls, ["Nome", "Instalação"], prefer_name=aba_clientes)
+            
         if aba_clientes:
             try:
-                df_ref = pd.read_excel(xls, sheet_name=aba_clientes, header=header_idx_cli)
-                mapa_clientes = criar_mapa_clientes(df_ref)
+                df_cli = pd.read_excel(xls, sheet_name=aba_clientes, header=h_idx_cli)
+                mapa_clientes = criar_mapa_completo_clientes(df_cli)
                 print(f"✓ Mapa de clientes carregado: {len(mapa_clientes)} registros.")
             except Exception as e:
                 print(f"✗ ERRO ao processar aba clientes: {str(e)}")
 
+        # 3. Filtrar por Mês
         df_mes = df.copy()
-        if cols_map['ref']:
+        if cols_map_det['ref']:
             date_input = mes_referencia_str.strip()
             if len(date_input) == 7: date_input += '-01'
             try:
                 mes_ref_dt = datetime.strptime(date_input, '%Y-%m-%d')
-                df['__ref_dt'] = df[cols_map['ref']].apply(safe_parse_date)
-                df_mes = df[
-                    (df['__ref_dt'].dt.year == mes_ref_dt.year) & 
-                    (df['__ref_dt'].dt.month == mes_ref_dt.month)
-                ].copy()
-            except:
-                pass 
+                df['__ref_dt'] = df[cols_map_det['ref']].apply(safe_parse_date)
+                df_mes = df[(df['__ref_dt'].dt.year == mes_ref_dt.year) & (df['__ref_dt'].dt.month == mes_ref_dt.month)].copy()
+            except: pass
 
-        if cols_map.get('boleto_ev'):
-            df_mes = df_mes[df_mes[cols_map['boleto_ev']].apply(to_num) >= 5].copy()
+        if cols_map_det.get('boleto_ev'):
+            df_mes = df_mes[df_mes[cols_map_det['boleto_ev']].apply(to_num) >= 5].copy()
 
-        if df_mes.empty:
-            return json.dumps({"error": f"Nenhum registro encontrado para {mes_referencia_str}."})
+        if df_mes.empty: return json.dumps({"error": f"Sem dados para {mes_referencia_str}."})
 
+        # 4. Processamento Final (Merge Inteligente)
         clientes = []
+        warnings = []
 
         for idx, row in df_mes.iterrows():
             try:
-                raw_id = str(row.get(col_instalacao_detalhe, '')).strip()
+                raw_id = str(row.get(col_inst_det, '')).strip()
                 id_limpo = limpar_uc(raw_id)
                 
-                nome_cliente = None
-                status_mapeamento = "OK"
+                # Busca Ficha Cadastral (Prioridade na chave limpa)
+                ficha = {}
+                status_map = "OK"
                 
-                if raw_id in mapa_clientes:
-                    nome_cliente = mapa_clientes[raw_id]
-                elif id_limpo in mapa_clientes:
-                    nome_cliente = mapa_clientes[id_limpo]
+                if raw_id in mapa_clientes: ficha = mapa_clientes[raw_id]
+                elif id_limpo in mapa_clientes: ficha = mapa_clientes[id_limpo]
                 
-                if nome_cliente:
-                    final_client_name = nome_cliente
-                else:
-                    final_client_name = "Cliente não identificado"
-                    status_mapeamento = "Nome Não Mapeado"
-                    warnings.append({
-                        "type": "warning",
-                        "severity": "warning",
-                        "title": "Nome Não Mapeado",
-                        "message": f"Instalação '{raw_id}' não encontrada na base.",
-                        "details": {"uc_buscada": raw_id}
-                    })
+                if not ficha:
+                    status_map = "Nome Não Mapeado"
+                    warnings.append({"type": "warning", "title": "Cliente não achado", "message": f"UC {raw_id} sem cadastro."})
 
-                metrics = compute_metrics(row, cols_map, vencimento_str)
+                # Função Get Inteligente: Tenta Detalhe -> Tenta Ficha -> Vazio
+                def get_val(field):
+                    col_det = cols_map_det.get(field)
+                    # 1. Se tem na planilha de consumo e não é vazio
+                    if col_det and pd.notna(row.get(col_det)) and str(row.get(col_det)).strip() != '':
+                        return safe_str(row.get(col_det))
+                    # 2. Se não, busca no cadastro do cliente
+                    if ficha and field in ficha and ficha[field]:
+                        return ficha[field]
+                    return ""
+
+                metrics = compute_metrics(row, cols_map_det, vencimento_str)
                 
+                # Monta endereço completo se os campos existirem na ficha
                 ends = []
-                for k in ['endereco', 'bairro', 'cidade']:
-                    col_name = cols_map.get(k)
-                    if col_name:
-                        val = safe_str(row.get(col_name))
-                        if val: ends.append(val)
-                
+                rua = get_val('endereco')
+                bairro = get_val('bairro')
+                cidade = get_val('cidade')
+                if rua: ends.append(rua)
+                if bairro: ends.append(bairro)
+                if cidade: ends.append(cidade)
                 endereco_completo = " - ".join(ends)
 
                 cliente = {
                     "raw_id": raw_id,
-                    "nome": final_client_name,
-                    "status_mapeamento": status_mapeamento,
-                    "documento": safe_str(row.get(cols_map.get('doc'))),
                     "instalacao": raw_id,
-                    "endereco": endereco_completo,
-                    "num_conta": safe_str(row.get(cols_map.get('num_conta'))),
+                    "nome": get_val('nome') or "Cliente não identificado",
+                    "documento": get_val('doc'),       # Puxa do cadastro se faltar no detalhe
+                    "num_conta": get_val('num_conta'), # Puxa do cadastro se faltar no detalhe
+                    "endereco": endereco_completo,     # Puxa do cadastro se faltar no detalhe
+                    "status_mapeamento": status_map,
                     "economiaTotal": metrics['economiaMes'],
                 }
                 
@@ -349,15 +326,9 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                 clientes.append(cliente)
 
             except Exception as ex:
-                warnings.append({
-                    "type": "error", "severity": "error",
-                    "title": "Erro na linha", "message": str(ex)
-                })
+                warnings.append({"type": "error", "title": "Erro linha", "message": str(ex)})
 
-        return json.dumps({
-            "data": clientes,
-            "warnings": warnings
-        })
+        return json.dumps({"data": clientes, "warnings": warnings})
 
     except Exception as e:
         return json.dumps({"error": f"Erro crítico: {traceback.format_exc()}"})
