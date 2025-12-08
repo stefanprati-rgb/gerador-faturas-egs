@@ -2,106 +2,113 @@ import pandas as pd
 from datetime import datetime
 
 # =================================================================
-# MODO ESPELHO: O CÓDIGO OBEDECE A PLANILHA (ZERO CÁLCULO)
+# MODO ESPELHO: TODOS OS DADOS VÊM DA PLANILHA (ZERO CÁLCULO)
 # =================================================================
+
+CO2_PER_KWH = 0.07
+TREES_PER_TON_CO2 = 8
 
 def compute_metrics(row, cols_map, vencimento_iso):
     """
-    Apenas formata os dados da planilha para o PDF.
-    Prioridade total para os valores (R$) que já vêm prontos.
+    Prepara os dados para o PDF coletando TODOS os valores da planilha.
+    NENHUM VALOR FINANCEIRO É CALCULADO - todos vêm da planilha.
     """
     
     def get(key, default=0.0):
         col = cols_map.get(key)
-        # Tenta pegar o valor numérico, se falhar, usa o default
         return to_num(row.get(col, default)) if col else default
 
-    # --- 1. LEITURA DIRETA DOS VALORES FINANCEIROS (O QUE IMPORTA) ---
-    
-    # Valor da Distribuidora (A planilha MANDA)
-    # Procura colunas como: "FATURA C/GD", "Saldo Próximo Mês", "Valor Fatura Distribuidora"
-    dist_total_real = get('fatura_c_gd') 
-    
-    # Valor do Boleto EGS (A planilha MANDA)
-    # Procura colunas como: "Boleto Hube", "Valor enviado para emissão", "Valor Cobrado"
-    egs_total_real = get('boleto_ev')
-
-    # Quantidades (Apenas para exibir no detalhe)
+    # ============================================================
+    # 1. COLETA DE QUANTIDADES (kWh)
+    # ============================================================
     consumo_qtd = get('consumo_qtd')
     comp_qtd = get('comp_qtd')
 
-    # --- 2. ENGENHARIA REVERSA (APENAS PARA "ENFEITAR" O PDF) ---
-    # O PDF pede "Tarifa" e "Total". Como já temos o Total Real, 
-    # apenas deduzimos a tarifa visual para não deixar o campo vazio.
+    # ============================================================
+    # 2. COLETA DE TARIFAS (R$/kWh) - DA PLANILHA
+    # ============================================================
+    tarifa_consumo = get('tarifa_consumo')     # Tarifa de consumo (TARIFA FP)
+    tarifa_credito = get('tarifa_credito')     # Tarifa de crédito (Tarifa média compensada)
+
+    # ============================================================
+    # 3. COLETA DE VALORES FINANCEIROS (R$) - DA PLANILHA
+    # ============================================================
+    dist_total = get('fatura_c_gd')            # Total fatura distribuidora
+    outros = get('outros')                      # Contrib. Ilum. Pública e Outros
+    egs_total = get('boleto_ev')               # Total boleto EGS
     
-    # Tarifa Visual de Consumo
-    if consumo_qtd > 0 and dist_total_real > 0:
-        # Exibe uma tarifa média (inclui impostos, ilum. pública, tudo)
-        tarifa_cons_visual = dist_total_real / consumo_qtd
-        # Se a tarifa ficar absurda (ex: R$ 10/kWh), trava em R$ 1,00 para não assustar
-        if tarifa_cons_visual > 5: tarifa_cons_visual = 0.0
-    else:
-        tarifa_cons_visual = 0.0
-
-    # Tarifa Visual do Crédito (Boleto)
-    if comp_qtd > 0 and egs_total_real > 0:
-        tarifa_credito_visual = egs_total_real / comp_qtd
-    else:
-        tarifa_credito_visual = 0.0
-
-    # --- 3. ECONOMIA (SE NÃO TIVER NA PLANILHA, AÍ SIM CALCULAMOS) ---
-    # Idealmente, adicione uma coluna "Economia" no COLUMNS_MAP do processor.py
-    # Por enquanto, mantemos o cálculo simples de economia apenas como fallback
+    # ============================================================
+    # 4. COLETA DE CUSTOS PARA ECONOMIA (R$) - DA PLANILHA
+    # ============================================================
+    custo_sem_solar = get('custo_sem_gd')      # Custo SEM GD
+    custo_com_solar = get('custo_com_gd')      # Custo COM GD
+    economia_planilha = get('economia')        # Economia direta da planilha
     
-    custo_sem_solar = dist_total_real + egs_total_real # Valor base pessimista
-    if consumo_qtd > 0:
-        # Estimativa de quanto pagaria sem a EGS (Tarifa cheia ~R$ 1.10)
-        custo_sem_solar = consumo_qtd * 1.10 
-        
-    custo_com_solar = dist_total_real + egs_total_real
-    economia = custo_sem_solar - custo_com_solar
+    # Se a planilha tiver a economia direta, usar ela
+    # Senão, calcular a partir dos custos (se disponíveis)
+    if economia_planilha > 0:
+        economia_mes = economia_planilha
+    elif custo_sem_solar > 0 and custo_com_solar > 0:
+        economia_mes = max(0.0, custo_sem_solar - custo_com_solar)
+    else:
+        # Fallback final: se não tiver nada, zerar
+        economia_mes = 0.0
 
-    # --- 4. RETORNO SIMPLIFICADO ---
+    # ============================================================
+    # 5. MÉTRICAS AMBIENTAIS (estas são calculadas, ok)
+    # ============================================================
+    co2_evitado = consumo_qtd * CO2_PER_KWH
+    arvores = (co2_evitado / 1000.0) * TREES_PER_TON_CO2
+
     def r(x, d=2): return round(float(x or 0), d)
 
     return {
-        # BLOCO DISTRIBUIDORA (Copia o valor final da planilha)
+        # Bloco Distribuidora
         "dist_consumo_qtd": r(consumo_qtd),
-        "dist_consumo_tar": r(tarifa_cons_visual, 4), # Tarifa deduzida apenas visual
-        "dist_consumo_total": r(dist_total_real),     # <--- O VALOR CORRETO
+        "dist_consumo_tar": r(tarifa_consumo, 4),    # ← COLETADO da planilha
+        "dist_consumo_total": r(dist_total),
+        "dist_comp_qtd": r(comp_qtd),
+        "dist_comp_tar": 0,
+        "dist_comp_total": 0,
+        "dist_outros": r(outros),                     # ← COLETADO da planilha
+        "dist_total": r(dist_total),
         
-        # Zera campos que confundem
-        "dist_comp_qtd": 0, "dist_comp_tar": 0, "dist_comp_total": 0, "dist_outros": 0,
-        "dist_total": r(dist_total_real),             # <--- REPETE O VALOR CORRETO
-
-        # BLOCO EGS / BOLETO (Copia o valor final da planilha)
+        # Bloco EGS / Boleto
         "det_credito_qtd": r(comp_qtd),
-        "det_credito_tar": r(tarifa_credito_visual, 4), # Tarifa deduzida apenas visual
-        "det_credito_total": r(egs_total_real),         # <--- O VALOR CORRETO
-        "det_total_contrib": r(egs_total_real),
+        "det_credito_tar": r(tarifa_credito, 4),     # ← COLETADO da planilha
+        "det_credito_total": r(egs_total),
+        "det_total_contrib": r(egs_total),
+        "totalPagar": r(egs_total),
         
-        # TOTAIS
-        "totalPagar": r(egs_total_real),
+        # Economia
+        "econ_total_sem": r(custo_sem_solar),        # ← COLETADO da planilha
+        "econ_total_com": r(custo_com_solar),        # ← COLETADO da planilha
+        "economiaMes": r(economia_mes),              # ← COLETADO da planilha
         
-        # METRICAS INFORMATIVAS
-        "econ_total_sem": r(custo_sem_solar),
-        "econ_total_com": r(custo_com_solar),
-        "economiaMes": r(economia),
-        "co2Evitado": r(consumo_qtd * 0.07),
-        "arvoresEquivalentes": r((consumo_qtd * 0.07 / 1000.0) * 8, 1),
+        # Métricas Ambientais (calculadas, ok)
+        "co2Evitado": r(co2_evitado),
+        "arvoresEquivalentes": r(arvores, 1),
         
-        # DATAS
+        # Datas
         "vencimento_iso": vencimento_iso,
         "emissao_iso": datetime.now().strftime('%Y-%m-%d')
     }
 
-# Função auxiliar que faltava
+# Função auxiliar
 def to_num(val):
     if pd.isna(val) or val == '': return 0.0
     try:
+        if isinstance(val, (int, float)): return float(val)
         if isinstance(val, str):
-            # Corrige formato brasileiro 1.000,00 para 1000.00
-            val = val.replace('.', '').replace(',', '.')
+            val_str = val.strip().replace('R$', '').replace(' ', '')
+            if ',' in val_str and '.' in val_str:
+                if val_str.rfind(',') > val_str.rfind('.'):
+                    val_str = val_str.replace('.', '').replace(',', '.')
+                else:
+                    val_str = val_str.replace(',', '')
+            elif ',' in val_str:
+                val_str = val_str.replace(',', '.')
+            return float(val_str)
         return float(val)
     except:
         return 0.0

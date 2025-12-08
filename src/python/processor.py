@@ -33,50 +33,86 @@ def to_num(val):
         return 0.0
 
 def compute_metrics(row, cols_map, vencimento_iso):
-    """Prepara os dados para o PDF priorizando valores da planilha."""
+    """
+    Prepara os dados para o PDF coletando TODOS os valores da planilha.
+    NENHUM VALOR FINANCEIRO É CALCULADO - todos vêm da planilha.
+    """
     def get(key, default=0.0):
         col = cols_map.get(key)
         return to_num(row.get(col, default)) if col else default
 
-    # 1. Leitura dos Valores Reais (Padrão Ouro)
-    dist_total_real = get('fatura_c_gd') 
-    egs_total_real = get('boleto_ev')
+    # ============================================================
+    # 1. COLETA DE QUANTIDADES (kWh)
+    # ============================================================
     consumo_qtd = get('consumo_qtd')
     comp_qtd = get('comp_qtd')
 
-    # 2. Engenharia Reversa Visual
-    tarifa_cons_visual = (dist_total_real / consumo_qtd) if (consumo_qtd > 0 and dist_total_real > 0) else 0.0
-    if tarifa_cons_visual > 10: tarifa_cons_visual = 0.0
+    # ============================================================
+    # 2. COLETA DE TARIFAS (R$/kWh) - DA PLANILHA
+    # ============================================================
+    tarifa_consumo = get('tarifa_consumo')     # Tarifa de consumo (TARIFA FP)
+    tarifa_credito = get('tarifa_credito')     # Tarifa de crédito (Tarifa média compensada)
+
+    # ============================================================
+    # 3. COLETA DE VALORES FINANCEIROS (R$) - DA PLANILHA
+    # ============================================================
+    dist_total = get('fatura_c_gd')            # Total fatura distribuidora
+    outros = get('outros')                      # Contrib. Ilum. Pública e Outros
+    egs_total = get('boleto_ev')               # Total boleto EGS
     
-    tarifa_credito_visual = (egs_total_real / comp_qtd) if (comp_qtd > 0 and egs_total_real > 0) else 0.0
-
-    # 3. Estimativa de Economia
-    custo_com_solar = dist_total_real + egs_total_real
-    if consumo_qtd > 0:
-        custo_sem_solar = consumo_qtd * 1.15 # Estimativa Tarifa Cheia
+    # ============================================================
+    # 4. COLETA DE CUSTOS PARA ECONOMIA (R$) - DA PLANILHA
+    # ============================================================
+    custo_sem_solar = get('custo_sem_gd')      # Custo SEM GD
+    custo_com_solar = get('custo_com_gd')      # Custo COM GD
+    economia_planilha = get('economia')        # Economia direta da planilha
+    
+    # Se a planilha tiver a economia direta, usar ela
+    # Senão, calcular a partir dos custos (se disponíveis)
+    if economia_planilha > 0:
+        economia_mes = economia_planilha
+    elif custo_sem_solar > 0 and custo_com_solar > 0:
+        economia_mes = max(0.0, custo_sem_solar - custo_com_solar)
     else:
-        custo_sem_solar = custo_com_solar * 1.10
+        # Fallback final: se não tiver nada, zerar
+        economia_mes = 0.0
 
-    economia_mes = max(0.0, custo_sem_solar - custo_com_solar)
+    # ============================================================
+    # 5. MÉTRICAS AMBIENTAIS (estas são calculadas, ok)
+    # ============================================================
+    co2_evitado = consumo_qtd * CO2_PER_KWH
+    arvores = (co2_evitado / 1000.0) * TREES_PER_TON_CO2
 
     def r(x, d=2): return round(float(x or 0), d)
 
     return {
+        # Bloco Distribuidora
         "dist_consumo_qtd": r(consumo_qtd),
-        "dist_consumo_tar": r(tarifa_cons_visual, 4),
-        "dist_consumo_total": r(dist_total_real),     
-        "dist_comp_qtd": 0, "dist_comp_tar": 0, "dist_comp_total": 0, "dist_outros": 0,
-        "dist_total": r(dist_total_real),             
+        "dist_consumo_tar": r(tarifa_consumo, 4),    # ← COLETADO da planilha
+        "dist_consumo_total": r(dist_total),
+        "dist_comp_qtd": r(comp_qtd),
+        "dist_comp_tar": 0,
+        "dist_comp_total": 0,
+        "dist_outros": r(outros),                     # ← COLETADO da planilha
+        "dist_total": r(dist_total),
+        
+        # Bloco EGS / Boleto
         "det_credito_qtd": r(comp_qtd),
-        "det_credito_tar": r(tarifa_credito_visual, 4),
-        "det_credito_total": r(egs_total_real),         
-        "det_total_contrib": r(egs_total_real),
-        "totalPagar": r(egs_total_real),
-        "econ_total_sem": r(custo_sem_solar),
-        "econ_total_com": r(custo_com_solar),
-        "economiaMes": r(economia_mes),
-        "co2Evitado": r(consumo_qtd * CO2_PER_KWH),
-        "arvoresEquivalentes": r((consumo_qtd * CO2_PER_KWH / 1000.0) * TREES_PER_TON_CO2, 1),
+        "det_credito_tar": r(tarifa_credito, 4),     # ← COLETADO da planilha
+        "det_credito_total": r(egs_total),
+        "det_total_contrib": r(egs_total),
+        "totalPagar": r(egs_total),
+        
+        # Economia
+        "econ_total_sem": r(custo_sem_solar),        # ← COLETADO da planilha
+        "econ_total_com": r(custo_com_solar),        # ← COLETADO da planilha
+        "economiaMes": r(economia_mes),              # ← COLETADO da planilha
+        
+        # Métricas Ambientais (calculadas, ok)
+        "co2Evitado": r(co2_evitado),
+        "arvoresEquivalentes": r(arvores, 1),
+        
+        # Datas
         "vencimento_iso": vencimento_iso,
         "emissao_iso": datetime.now().strftime('%Y-%m-%d')
     }
@@ -99,22 +135,70 @@ COLUMNS_MAP = {
     'bairro': ["Bairro"],
     'cidade': ["Cidade", "Município"],
     'num_conta': ["Número da conta", "Conta Contrato", "Conta"],
-    # Dados Financeiros (Atualizados com sua lista)
+    
+    # ============================================================
+    # DADOS FINANCEIROS - TODOS COLETADOS DA PLANILHA
+    # ============================================================
+    
+    # Quantidades (kWh)
     'consumo_qtd': ["CONSUMO_FP", "Energia consumida - Fora ponta - quantidade", "Consumo KWh"],
     'comp_qtd': ["CRÉD. CONSUMIDO_FP", "Creditos consumidos - Fora ponta - quantidade", "Energia Compensada"],
-    'tarifa_consumo': ["TARIFA S/ IMPOSTOS FP", "TARIFA FP", "Energia consumida - Fora ponta - tarifa", "Tarifa Cheia"],
-    'tarifa_comp_ev': ["TARIFA_Comp_FP", "Tarifa EGS", "Tarifa Acordada"],
-    'tarifa_comp_dist': ["TARIFA DE ENERGIA COMPENSADA", "Tarifa Fio B", "Tarifa Compensação"],
-    'fatura_c_gd': ["FATURA C/GD", "Saldo Próximo Mês", "Valor Fatura Distribuidora"],
-    # BOLETO EGS - Priorizar colunas com valor FINAL do boleto (após desconto)
+    
+    # Tarifas (R$/kWh) - COLETADAS, NÃO CALCULADAS
+    'tarifa_consumo': [
+        "TARIFA FP",                    # ← Tarifa com impostos (prioridade)
+        "TARIFA S/ IMPOSTOS FP",        # ← Tarifa sem impostos (fallback)
+        "Energia consumida - Fora ponta - tarifa",
+        "Tarifa Cheia"
+    ],
+    'tarifa_credito': [
+        "Tarifa média compensada sobre energia compensada",  # ← Tarifa média real
+        "TARIFA_Comp_FP",               # ← Tarifa de compensação
+        "Tarifa EGS",
+        "Tarifa Acordada"
+    ],
+    
+    # Valores da Distribuidora (R$)
+    'fatura_c_gd': ["FATURA C/GD", "FATURA C/GD COM RESTITUIÇÃO", "Saldo Próximo Mês", "Valor Fatura Distribuidora"],
+    'outros': [
+        "OUTROS",                       # ← Contrib. Ilum. Pública e Outros
+        "Contrib Ilum Publica",
+        "CIP",
+        "Iluminação Pública"
+    ],
+    
+    # Boleto EGS (R$)
     'boleto_ev': [
-        "Boleto Hube definido para a ref. Mensal",  # ← PRIORIDADE 1: Valor final após desconto
-        "Valor enviado para emissão",               # ← PRIORIDADE 2: Mesmo valor
-        "Boleto Emitido Gera StarkBank",            # ← PRIORIDADE 3: Valor emitido
-        "Boleto PAGO StarkBank",                    # ← PRIORIDADE 4: Valor pago
-        "valorTotal",                               # Fallback genérico (nem sempre existe)
+        "Boleto Hube definido para a ref. Mensal",  # ← PRIORIDADE 1: Valor final
+        "Valor enviado para emissão",
+        "Boleto Emitido Gera StarkBank",
+        "Boleto PAGO StarkBank",
+        "valorTotal",
         "Valor Cobrado",
         "Valor Boleto"
+    ],
+    
+    # Custos para Economia (R$) - COLETADOS, NÃO CALCULADOS
+    'custo_sem_gd': [
+        "CUSTO_S_GD ",                  # ← Com espaço (nome real)
+        "CUSTO_S_GD",                   # ← Sem espaço (fallback)
+        "Custo Sem GD",
+        "CUSTO SEM GD"
+    ],
+    'custo_com_gd': [
+        "CUSTO_C_GD\n(Fatura real+Boleto Gera Final)",
+        "CUSTO_C_GD\n(Fatura real+Boleto Gera Padrão)",
+        "CUSTO_C_GD",
+        "Custo Com GD"
+    ],
+    
+    # Economia (R$) - COLETADA DIRETAMENTE
+    'economia': [
+        "Ganho energia compensada (R$) Final",  # ← Economia final
+        "Ganho Total (R$) Padrão",
+        "Ganho total Final",
+        "Economia",
+        "Ganho"
     ]
 }
 
