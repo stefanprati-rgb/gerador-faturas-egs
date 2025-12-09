@@ -9,6 +9,7 @@ import notification from '../../components/Notification.js';
 import { getProcessadorTemplate } from './templates/processador-template.js';
 import { handleExport } from './utils/data-exporter.js';
 import { renderResults, renderWarnings } from './utils/results-renderer.js';
+import { initConfigModal } from '../../components/ConfigModal.js';
 
 let isPyodideReady = false;
 
@@ -82,6 +83,37 @@ export function initProcessador() {
     window.location.hash = '/corretor';
     notification.info('Navegando para o Corretor...');
   });
+
+  // Inicializar modal de configuração
+  const configModal = initConfigModal(excelProcessor, () => {
+    // Callback para atualizar indicadores quando status mudar
+    updateConfigBadge();
+  });
+  const configBtn = document.getElementById('config-btn-processador');
+  const configBadge = document.getElementById('config-badge');
+  const dbStatusText = document.getElementById('db-status-text');
+
+  if (configBtn) {
+    configBtn.addEventListener('click', () => {
+      configModal.open();
+    });
+  }
+
+  // Atualizar badge de status da base externa
+  const updateConfigBadge = async () => {
+    const status = await excelProcessor.getExternalDatabaseStatus();
+    if (configBadge) {
+      configBadge.classList.toggle('hidden', !status.loaded);
+    }
+    if (dbStatusText) {
+      dbStatusText.classList.toggle('hidden', !status.loaded);
+      if (status.loaded && status.recordCount > 0) {
+        dbStatusText.innerHTML = `<i class="fas fa-check-circle mr-1"></i>Base carregada (${status.recordCount} registros)`;
+      }
+    }
+  };
+
+  updateConfigBadge();
 
   // Inicializar Pyodide em background
   initPyodideForProcessador();

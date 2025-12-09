@@ -1,0 +1,7 @@
+{
+    "client_database_path": "%USERPROFILE%\\GRUPO GERA\\Gestão GDC - Documentos\\EGS\\4 - Base de Clientes\\BASE DE CLIENTES - EGS.xlsx",
+    "client_database_sheet": "base",
+    "client_database_header_row": 1,
+    "enable_external_client_db": true,
+    "_comment": "O caminho usa %USERPROFILE% para funcionar com qualquer usuário do SharePoint"
+}

@@ -5,14 +5,28 @@
  * @returns {string} HTML do Processador.
  */
 export function getProcessadorTemplate() {
-    return `
+  return `
       <div class="main-grid">
         <div id="processador-file-status" class="col-span-full hidden"></div>
 
         <div class="left-panel">
           
           <div class="panel-card" id="upload-card-processador">
-            <h2 class="section-title">1. Fonte de Dados</h2>
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="section-title mb-0">1. Fonte de Dados</h2>
+              <div class="flex items-center gap-2">
+                <span id="db-status-text" class="hidden text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                  <i class="fas fa-check-circle mr-1"></i>Base carregada
+                </span>
+                <button id="config-btn-processador" class="relative p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all group" title="Configurações da Base de Clientes">
+                  <i class="fas fa-cog text-lg"></i>
+                  <span id="config-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
+                  <span class="absolute bottom-full right-0 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    Configurar base de clientes
+                  </span>
+                </button>
+              </div>
+            </div>
             <div id="drop-zone-processador" class="drop-zone">
               <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
               <p class="font-semibold">Carregar Planilha</p>

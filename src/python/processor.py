@@ -5,6 +5,8 @@ import warnings as python_warnings
 from datetime import datetime
 import re
 from typing import Optional, Dict, Any
+import os
+from pathlib import Path
 
 # =================================================================
 # MÓDULO DE CÁLCULOS INTEGRADO (MODO ESPELHO)
@@ -124,14 +126,118 @@ def compute_metrics(row, cols_map, vencimento_iso):
 # Suprime warnings do openpyxl
 python_warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
+# =================================================================
+# CONFIGURAÇÃO E CARREGAMENTO DE BASE EXTERNA
+# =================================================================
+
+def carregar_config():
+    """Carrega configuração do arquivo config.json"""
+    try:
+        # Tentar diferentes caminhos para compatibilidade com Pyodide e servidor
+        possible_paths = []
+        
+        # 1. Caminho raiz do Pyodide (onde excelProcessor.js escreve o arquivo)
+        possible_paths.append(Path('/config.json'))
+        
+        # 2. Tentar usar __file__ (funciona em servidor Python normal)
+        try:
+            possible_paths.append(Path(__file__).parent / 'config.json')
+        except NameError:
+            pass  # __file__ não existe no Pyodide
+        
+        # 3. Tentar caminhos relativos
+        possible_paths.append(Path('config.json'))
+        possible_paths.append(Path('./config.json'))
+        possible_paths.append(Path('src/python/config.json'))
+        
+        # Tentar cada caminho
+        for config_path in possible_paths:
+            try:
+                if config_path.exists():
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                        print(f"✓ Configuração carregada de: {config_path}")
+                        return config
+            except:
+                continue
+        
+        print("⚠ Arquivo config.json não encontrado em nenhum caminho")
+    except Exception as e:
+        print(f"⚠ Erro ao carregar config.json: {e}")
+    return {}
+
+def carregar_base_clientes_externa(config):
+    """
+    Carrega a base de clientes de um arquivo externo configurado.
+    Retorna um mapa {UC: {nome, doc, endereco, bairro, cidade, num_conta}}
+    """
+    if not config.get('enable_external_client_db', False):
+        print("📋 Base de clientes externa desabilitada na configuração")
+        return {}
+    
+    db_path = config.get('client_database_path', '')
+    
+    # Prioridade 1: Arquivo carregado via upload no Pyodide (/external_client_db.xlsx)
+    # Prioridade 2: Caminho do SharePoint (expandir variáveis de ambiente)
+    if db_path and not db_path.startswith('/'):
+        db_path = os.path.expandvars(db_path)
+    
+    if not db_path or not os.path.exists(db_path):
+        print(f"⚠ Arquivo de base de clientes não encontrado: {db_path}")
+        return {}
+    
+    try:
+        print(f"📂 Carregando base de clientes externa: {db_path}")
+        xls_ext = pd.ExcelFile(db_path, engine='openpyxl')
+        
+        # Tentar encontrar a aba correta
+        sheet_name = config.get('client_database_sheet', None)
+        if not sheet_name or sheet_name not in xls_ext.sheet_names:
+            # Tentar primeira aba ou aba com nome relevante
+            for sn in xls_ext.sheet_names:
+                if any(term in sn.lower() for term in ['cliente', 'base', 'cadastro']):
+                    sheet_name = sn
+                    break
+            if not sheet_name:
+                sheet_name = xls_ext.sheet_names[0]
+        
+        print(f"📄 Usando aba: '{sheet_name}'")
+        
+        # Usar header_row configurado ou tentar encontrar automaticamente
+        h_idx = config.get('client_database_header_row', None)
+        
+        if h_idx is None:
+            # Tentar encontrar header automaticamente
+            _, h_idx = find_sheet_and_header(
+                xls_ext, 
+                ["Instalação", "Nome", "CPF", "CNPJ", "Endereço", "NOME COMPLETO"],
+                prefer_name=sheet_name
+            )
+        else:
+            print(f"✓ Usando header configurado: linha {h_idx}")
+        
+        df_ext = pd.read_excel(xls_ext, sheet_name=sheet_name, header=h_idx)
+        print(f"✓ Base externa carregada: {len(df_ext)} linhas")
+        print(f"  Colunas disponíveis: {list(df_ext.columns[:15])}")
+        
+        mapa = criar_mapa_completo_clientes(df_ext)
+        print(f"✓ Mapa de clientes externos criado: {len(mapa)} registros")
+        
+        return mapa
+        
+    except Exception as e:
+        print(f"✗ ERRO ao carregar base de clientes externa: {str(e)}")
+        print(f"   Traceback: {traceback.format_exc()}")
+        return {}
+
 # COLUMNS_MAP AJUSTADO COM NOMES REAIS DAS COLUNAS DO RELATÓRIO
 COLUMNS_MAP = {
     'ref': ["REF (sempre dia 01 de cada mês)", "REF", "Mês de Referência", "Competência", "Data", "Data Ref", "Referencia", "Mês", "Referência", "Data Emissao"],
     'inst': ["Instalação", "Nº Instalação", "UC", "Codigo"],
     # Dados Cadastrais
-    'nome': ["Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
-    'doc': ["Documento", "CPF/CNPJ", "CPF", "CNPJ"],
-    'endereco': ["Endereço", "Logradouro", "Rua"],
+    'nome': ["NOME COMPLETO OU RAZÃO SOCIAL", "Nome Cliente", "Nome/Razão Social", "Cliente", "NOME", "RAZÃO SOCIAL"],
+    'doc': ["CNPJ", "Documento", "CPF/CNPJ", "CPF"],
+    'endereco': ["ENDEREÇO COMPLETO", "Endereço", "Logradouro", "Rua"],
     'bairro': ["Bairro"],
     'cidade': ["Cidade", "Município"],
     'num_conta': ["Número da conta", "Conta Contrato", "Conta"],
@@ -331,11 +437,21 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                 "details": f"O sistema precisa saber o mês para gerar apenas as faturas corretas. {_diagnosticar_colunas(df)}"
             })
 
-        # 2. Carregar Aba Clientes
+        # 2. Carregar Aba Clientes (com suporte a base externa)
         mapa_clientes = {}
+        
+        # 2.1 Tentar carregar base de clientes externa primeiro
+        config = carregar_config()
+        mapa_clientes_externo = carregar_base_clientes_externa(config)
+        
+        if mapa_clientes_externo:
+            print(f"✓ Base de clientes externa carregada com sucesso: {len(mapa_clientes_externo)} registros")
+            mapa_clientes = mapa_clientes_externo
+        
+        # 2.2 Tentar carregar aba de clientes do relatório (para complementar ou substituir)
         aba_clientes = None
         
-        print(f"📋 Procurando aba de clientes. Abas disponíveis: {xls.sheet_names}")
+        print(f"📋 Procurando aba de clientes no relatório. Abas disponíveis: {xls.sheet_names}")
         
         for sheet in xls.sheet_names:
             if 'info' in sheet.lower() and 'cliente' in sheet.lower(): 
@@ -358,12 +474,30 @@ def processar_relatorio_para_fatura(file_content, mes_referencia_str, vencimento
                 df_cli = pd.read_excel(xls, sheet_name=aba_clientes, header=h_idx_cli)
                 print(f"✓ Aba '{aba_clientes}' carregada com {len(df_cli)} linhas")
                 print(f"  Colunas: {list(df_cli.columns[:10])}")
-                mapa_clientes = criar_mapa_completo_clientes(df_cli)
-                print(f"✓ Mapa de clientes carregado: {len(mapa_clientes)} registros.")
+                mapa_clientes_interno = criar_mapa_completo_clientes(df_cli)
+                print(f"✓ Mapa de clientes interno carregado: {len(mapa_clientes_interno)} registros.")
+                
+                # Merge: dados internos complementam/sobrescrevem externos
+                if mapa_clientes_externo:
+                    # Mesclar: prioridade para dados do relatório (mais atualizados)
+                    for uc, dados in mapa_clientes_interno.items():
+                        if uc in mapa_clientes:
+                            # Atualizar apenas campos não vazios do relatório
+                            for campo, valor in dados.items():
+                                if valor and valor.strip():
+                                    mapa_clientes[uc][campo] = valor
+                        else:
+                            mapa_clientes[uc] = dados
+                    print(f"✓ Dados mesclados: {len(mapa_clientes)} registros totais")
+                else:
+                    mapa_clientes = mapa_clientes_interno
+                    
             except Exception as e:
                 print(f"✗ ERRO ao carregar aba clientes: {str(e)}")
         else:
-            print("✗ AVISO: Nenhuma aba de clientes encontrada!")
+            if not mapa_clientes:
+                print("✗ AVISO: Nenhuma fonte de dados de clientes disponível!")
+
 
         # 3. Filtrar por Mês (AGORA COM LOG E TRATAMENTO DE ERRO)
         df_mes = pd.DataFrame()
