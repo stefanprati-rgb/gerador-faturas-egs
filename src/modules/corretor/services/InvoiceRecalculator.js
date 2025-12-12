@@ -76,7 +76,7 @@ export const CAMPOS_CONFIG = {
         step: 0.01,
         formula: 'consumo_fp * tarifa_fp - cred_fp * tarifa_comp_fp + outros',
         dependentes: ['custo_com_gd', 'economia'],
-        conflitos: ['consumo_fp', 'tarifa_fp', 'cred_fp', 'tarifa_comp_fp', 'outros']
+        conflitos: ['economia', 'boleto_egs']
     },
     custo_sem_gd: {
         tipo: 'derivado',
@@ -311,13 +311,34 @@ export function resolverConflito(valores, campoAlterado, novoValor, manterFixo) 
             break;
 
         case 'fatura_cgd':
-            // Fatura = consumo × tarifa - crédito × tarifa_comp + outros
-            // Por simplicidade, ajustamos 'outros'
+            // 1. Atualizar Fatura e Outros (Ajuste obrigatório para consistência da fatura)
             v.outros = round(novoValor - v.consumo_fp * v.tarifa_fp + v.cred_fp * v.tarifa_comp_fp);
             v.fatura_cgd = novoValor;
-            // Recalcular derivados em cascata
-            v.custo_com_gd = round(v.fatura_cgd + v.boleto_egs);
-            v.economia = round(Math.max(0, v.custo_sem_gd - v.custo_com_gd));
+
+            // 2. Recalcular Custo SEM GD (Pois 'outros' mudou)
+            v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
+
+            // 3. Resolver conflito downstream
+            if (manterFixo === 'boleto_egs') {
+                // Manter boleto fixo -> Economia muda (comportamento padrão anterior)
+                // v.boleto_egs mantém o valor atual
+                v.boleto_fixo = true;
+                v.custo_com_gd = round(v.fatura_cgd + v.boleto_egs);
+                v.economia = round(Math.max(0, v.custo_sem_gd - v.custo_com_gd));
+            } else if (manterFixo === 'economia') {
+                // Manter economia fixa -> Boleto muda (para compensar a diferença da fatura)
+                // Economia = Sem - Com => Com = Sem - Economia
+                v.custo_com_gd = round(v.custo_sem_gd - v.economia);
+
+                // Com = Fatura + Boleto => Boleto = Com - Fatura
+                v.boleto_egs = round(v.custo_com_gd - v.fatura_cgd);
+                v.boleto_fixo = true;
+
+                // Recalcular tarifa EGS reversa para consistência
+                if (v.cred_fp > 0) {
+                    v.tarifa_egs = round(v.boleto_egs / v.cred_fp, 6);
+                }
+            }
             break;
     }
 
