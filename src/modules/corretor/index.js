@@ -4,24 +4,28 @@ import { FileStatus } from '../../components/FileStatus.js';
 import { pdfGenerator } from '../../core/pdfGenerator.js';
 import { formatCurrency, normalizeString } from '../../core/formatters.js';
 import notification from '../../components/Notification.js';
+
 // Importação dos módulos modularizados
 import { getEditModalTemplate } from './templates/edit-modal-template.js';
-import { recalculateInvoice } from './services/InvoiceRecalculator.js';
+import { getConflictModalTemplate, showConflictModal, hideConflictModal } from './templates/conflict-modal-template.js';
+import {
+  recalculateInvoice,
+  extrairValoresBase,
+  calcularDerivados,
+  detectarConflito,
+  resolverConflito,
+  CAMPOS_CONFIG
+} from './services/InvoiceRecalculator.js';
 
 let currentEditingClient = null;
+let currentEditorValues = null;
 let displayedClients = [];
+let pendingConflict = null;
 
 /**
- * Renderiza a interface principal do Corretor, incluindo o template da modal.
+ * Renderiza a interface principal do Corretor, incluindo os templates das modais.
  */
 export async function renderCorretor() {
-  // O template da modal é injetado no final do corpo da página principal (index.html)
-  // O router irá injetar a modal no DOM, então a função principal só precisa do conteúdo da aba.
-
-  // No entanto, como o template da modal é grande e está na função render, 
-  // precisamos garantir que ele seja retornado para ser injetado.
-
-  // O conteúdo da aba:
   const content = `
     <div class="main-grid">
       <div id="corretor-file-status" class="col-span-full hidden"></div>
@@ -68,19 +72,13 @@ export async function renderCorretor() {
     </div>
   `;
 
-  // A modal é retornada aqui para ser injetada no final do main-content
-  return content + getEditModalTemplate();
+  // Retorna conteúdo + modais
+  return content + getEditModalTemplate() + getConflictModalTemplate();
 }
 
 export function initCorretor() {
-  // Deve-se garantir que a modal esteja no DOM antes de inicializar os event listeners
-  const modalContainer = document.getElementById('edit-modal-corretor');
-  if (!modalContainer) {
-    // Injeta a modal no body se ainda não estiver lá (fallback/garantia)
-    const modalWrapper = document.createElement('div');
-    modalWrapper.innerHTML = getEditModalTemplate();
-    document.body.appendChild(modalWrapper.firstElementChild);
-  }
+  // Garantir que as modais estejam no DOM
+  ensureModalsInDOM();
 
   new FileStatus('corretor-file-status');
 
@@ -99,13 +97,244 @@ export function initCorretor() {
   [closeModalBtn, cancelEditBtn].forEach(btn => btn?.addEventListener('click', closeModal));
   saveEditBtn?.addEventListener('click', handleSave);
 
-  ['edit-comp_qtd', 'edit-tarifa_comp_ev', 'edit-boleto_ev', 'edit-dist_outros'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', updatePreview);
+  // Configurar listeners para todos os campos editáveis
+  setupFieldListeners();
+}
+
+/**
+ * Garante que as modais estejam no DOM
+ */
+function ensureModalsInDOM() {
+  if (!document.getElementById('edit-modal-corretor')) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = getEditModalTemplate();
+    document.body.appendChild(wrapper.firstElementChild);
+  }
+
+  if (!document.getElementById('conflict-modal')) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = getConflictModalTemplate();
+    document.body.appendChild(wrapper.firstElementChild);
+  }
+}
+
+/**
+ * Configura listeners para todos os campos editáveis
+ */
+function setupFieldListeners() {
+  // Campos de input direto (recálculo imediato)
+  const inputFields = [
+    'edit-consumo_fp',
+    'edit-cred_fp',
+    'edit-tarifa_fp',
+    'edit-tarifa_comp_fp',
+    'edit-tarifa_egs',
+    'edit-outros',
+    'edit-boleto_egs'
+  ];
+
+  inputFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', () => handleFieldChange(id));
+    }
   });
+
+  // Campos derivados (podem gerar conflito)
+  const derivedFields = [
+    'edit-fatura_cgd',
+    'edit-custo_sem_gd',
+    'edit-custo_com_gd',
+    'edit-economia'
+  ];
+
+  derivedFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', () => handleDerivedFieldChange(id));
+    }
+  });
+
+  // Checkbox boleto fixo
+  const boletoFixoCheckbox = document.getElementById('edit-boleto_fixo');
+  if (boletoFixoCheckbox) {
+    boletoFixoCheckbox.addEventListener('change', handleBoletoFixoChange);
+  }
+}
+
+/**
+ * Handler para mudança em campo de input
+ */
+function handleFieldChange(fieldId) {
+  if (!currentEditorValues) return;
+
+  const fieldName = fieldId.replace('edit-', '');
+  const el = document.getElementById(fieldId);
+  const value = parseFloat(el?.value || 0);
+
+  // Atualizar valor no editor
+  currentEditorValues[fieldName] = value;
+
+  // Tratamento especial para boleto
+  if (fieldName === 'boleto_egs') {
+    currentEditorValues.boleto_fixo = true;
+    updateBoletoBadge(true);
+    // Recalcular tarifa EGS reversa
+    if (currentEditorValues.cred_fp > 0) {
+      currentEditorValues.tarifa_egs = value / currentEditorValues.cred_fp;
+      document.getElementById('edit-tarifa_egs').value = currentEditorValues.tarifa_egs.toFixed(6);
+    }
+  }
+
+  if (fieldName === 'tarifa_egs') {
+    currentEditorValues.boleto_fixo = false;
+    updateBoletoBadge(false);
+  }
+
+  // Recalcular e atualizar preview
+  currentEditorValues = calcularDerivados(currentEditorValues);
+  updateAllFields();
+}
+
+/**
+ * Handler para mudança em campo derivado (pode gerar conflito)
+ */
+function handleDerivedFieldChange(fieldId) {
+  if (!currentEditorValues) return;
+
+  const fieldName = fieldId.replace('edit-', '');
+  const el = document.getElementById(fieldId);
+  const novoValor = parseFloat(el?.value || 0);
+  const valorAtual = currentEditorValues[fieldName];
+
+  // Se o valor não mudou significativamente, ignorar
+  if (Math.abs(novoValor - valorAtual) < 0.01) return;
+
+  // Detectar conflito
+  const conflito = detectarConflito(fieldName);
+
+  if (conflito) {
+    // Mostrar modal de resolução de conflito
+    const opcoes = conflito.opcoesResolucao.map(opt => ({
+      campo: opt.campo,
+      label: opt.label,
+      valor: formatCurrency(currentEditorValues[opt.campo] || 0),
+      descricao: `Manter este valor fixo e recalcular os demais`
+    }));
+
+    showConflictModal(
+      fieldName,
+      conflito.label,
+      novoValor,
+      opcoes,
+      (campoFixo) => {
+        // Resolver conflito
+        currentEditorValues = resolverConflito(currentEditorValues, fieldName, novoValor, campoFixo);
+        currentEditorValues = calcularDerivados(currentEditorValues);
+        updateAllFields();
+      },
+      () => {
+        // Cancelar - restaurar valor original
+        el.value = valorAtual.toFixed(2);
+      }
+    );
+  } else {
+    // Sem conflito, apenas atualizar
+    currentEditorValues[fieldName] = novoValor;
+    currentEditorValues = calcularDerivados(currentEditorValues);
+    updateAllFields();
+  }
+}
+
+/**
+ * Handler para mudança no checkbox de boleto fixo
+ */
+function handleBoletoFixoChange() {
+  if (!currentEditorValues) return;
+
+  const isFixo = document.getElementById('edit-boleto_fixo')?.checked || false;
+  currentEditorValues.boleto_fixo = isFixo;
+  updateBoletoBadge(isFixo);
+
+  // Recalcular se não for fixo
+  if (!isFixo) {
+    currentEditorValues = calcularDerivados(currentEditorValues);
+    updateAllFields();
+  }
+}
+
+/**
+ * Atualiza badge de modo do boleto
+ */
+function updateBoletoBadge(isFixo) {
+  const badge = document.getElementById('boleto-mode-badge');
+  if (badge) {
+    if (isFixo) {
+      badge.textContent = 'FIXO';
+      badge.className = 'text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full ml-2';
+    } else {
+      badge.textContent = 'CALCULADO';
+      badge.className = 'text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-2';
+    }
+  }
+}
+
+/**
+ * Atualiza todos os campos na UI
+ */
+function updateAllFields() {
+  if (!currentEditorValues) return;
+
+  const v = currentEditorValues;
+
+  // Campos de input (atualizar se não estiver focado)
+  const updateIfNotFocused = (id, value, decimals = 2) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) {
+      el.value = typeof value === 'number' ? value.toFixed(decimals) : value;
+    }
+  };
+
+  // Quantidades
+  updateIfNotFocused('edit-consumo_fp', v.consumo_fp, 0);
+  updateIfNotFocused('edit-cred_fp', v.cred_fp, 0);
+
+  // Tarifas
+  updateIfNotFocused('edit-tarifa_fp', v.tarifa_fp, 6);
+  updateIfNotFocused('edit-tarifa_comp_fp', v.tarifa_comp_fp, 6);
+  updateIfNotFocused('edit-tarifa_egs', v.tarifa_egs, 6);
+
+  // Valores
+  updateIfNotFocused('edit-outros', v.outros, 2);
+  updateIfNotFocused('edit-boleto_egs', v.boleto_egs, 2);
+  updateIfNotFocused('edit-fatura_cgd', v.fatura_cgd, 2);
+
+  // Checkbox boleto fixo
+  const boletoFixoCheckbox = document.getElementById('edit-boleto_fixo');
+  if (boletoFixoCheckbox) {
+    boletoFixoCheckbox.checked = v.boleto_fixo;
+  }
+
+  // Campos de resultado (sempre atualizar)
+  const setResult = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = formatCurrency(value);
+  };
+
+  setResult('res-economia_mes', v.economia);
+  setResult('res-custo_sem_gd', v.custo_sem_gd);
+  setResult('res-fatura_cgd', v.fatura_cgd);
+  setResult('res-boleto_egs', v.boleto_egs);
+  setResult('res-custo_com_gd', v.custo_com_gd);
+
+  // Métricas ambientais
+  const co2El = document.getElementById('res-co2');
+  const arvoresEl = document.getElementById('res-arvores');
+  if (co2El) co2El.textContent = `${(v.co2_evitado || 0).toFixed(1)} kg`;
+  if (arvoresEl) arvoresEl.textContent = (v.arvores || 0).toFixed(1);
 }
 
 function updateCorretorUI(state) {
-  // PROTEÇÃO CONTRA CRASH
   const noFileEl = document.getElementById('corretor-no-file');
   if (!noFileEl) return;
 
@@ -219,64 +448,69 @@ function openEditModal(instalacao) {
 
   if (!client) return notification.error('Cliente não encontrado');
 
+  // Clonar cliente para edição
   currentEditingClient = JSON.parse(JSON.stringify(client));
 
-  if (!currentEditingClient._editor) {
-    currentEditingClient = recalculateInvoice(currentEditingClient);
+  // Extrair valores para o editor
+  currentEditorValues = extrairValoresBase(currentEditingClient);
+
+  // Calcular tarifa EGS reversa se não informada
+  if (currentEditorValues.tarifa_egs === 0 && currentEditorValues.cred_fp > 0 && currentEditorValues.boleto_egs > 0) {
+    currentEditorValues.tarifa_egs = currentEditorValues.boleto_egs / currentEditorValues.cred_fp;
   }
 
+  // Por padrão, boleto vem fixo da planilha
+  currentEditorValues.boleto_fixo = true;
+
+  // Calcular derivados
+  currentEditorValues = calcularDerivados(currentEditorValues);
+
+  // Atualizar header
   document.getElementById('modal-client-name').textContent = `${currentEditingClient.nome} (${currentEditingClient.instalacao})`;
-  document.getElementById('edit-comp_qtd').value = currentEditingClient._editor.comp_qtd;
-  document.getElementById('edit-tarifa_comp_ev').value = currentEditingClient._editor.tarifa_comp_ev;
-  document.getElementById('edit-boleto_ev').value = currentEditingClient._editor.boleto_ev;
-  document.getElementById('edit-dist_outros').value = currentEditingClient._editor.dist_outros;
 
-  updatePreview();
+  // Popular todos os campos
+  updateAllFields();
+  updateBoletoBadge(currentEditorValues.boleto_fixo);
 
+  // Mostrar modal
   const modal = document.getElementById('edit-modal-corretor');
   modal.classList.remove('hidden');
-  // Pequeno timeout para permitir transição CSS se houver
   setTimeout(() => modal.querySelector('div').classList.remove('scale-95'), 10);
+
+  // Reconfigurar listeners após modal abrir
+  setTimeout(() => setupFieldListeners(), 50);
 }
 
 function closeModal() {
   const modal = document.getElementById('edit-modal-corretor');
-  modal.classList.add('hidden');
-  currentEditingClient = null;
-}
-
-function updatePreview() {
-  if (!currentEditingClient) return;
-
-  currentEditingClient._editor = {
-    comp_qtd: parseFloat(document.getElementById('edit-comp_qtd')?.value || 0),
-    tarifa_comp_ev: parseFloat(document.getElementById('edit-tarifa_comp_ev')?.value || 0),
-    boleto_ev: parseFloat(document.getElementById('edit-boleto_ev')?.value || 0),
-    dist_outros: parseFloat(document.getElementById('edit-dist_outros')?.value || 0),
-  };
-
-  const recalculated = recalculateInvoice(currentEditingClient);
-
-  document.getElementById('res-total_contribuicao').textContent = formatCurrency(recalculated.totalPagar);
-  document.getElementById('res-total_distribuidora').textContent = formatCurrency(recalculated.dist_total);
-  document.getElementById('res-total_com_gd').textContent = formatCurrency(recalculated.econ_total_com);
-  document.getElementById('res-total_sem_gd').textContent = formatCurrency(recalculated.econ_total_sem);
-  document.getElementById('res-economia_mes').textContent = formatCurrency(recalculated.economiaMes);
+  modal?.querySelector('div')?.classList.add('scale-95');
+  setTimeout(() => {
+    modal?.classList.add('hidden');
+    currentEditingClient = null;
+    currentEditorValues = null;
+  }, 200);
 }
 
 async function handleSave() {
-  if (!currentEditingClient) return;
+  if (!currentEditingClient || !currentEditorValues) return;
 
-  // Atualiza valores finais
-  updatePreview();
-  const finalClientData = recalculateInvoice(currentEditingClient);
+  // Construir cliente final com valores do editor
+  const finalClientData = recalculateInvoice(currentEditingClient, {
+    consumo_fp: currentEditorValues.consumo_fp,
+    cred_fp: currentEditorValues.cred_fp,
+    tarifa_fp: currentEditorValues.tarifa_fp,
+    tarifa_comp_fp: currentEditorValues.tarifa_comp_fp,
+    tarifa_egs: currentEditorValues.tarifa_egs,
+    outros: currentEditorValues.outros,
+    boleto_egs: currentEditorValues.boleto_egs
+  });
 
   // Atualiza no State
   const state = stateManager.getState();
   const updatedData = state.processedData.map(c =>
     c.instalacao === finalClientData.instalacao ? finalClientData : c
   );
-  stateManager.setProcessedData({ data: updatedData, warnings: state.validationWarnings }); // Isso vai disparar updateCorretorUI e atualizar a lista
+  stateManager.setProcessedData({ data: updatedData, warnings: state.validationWarnings });
 
   const saveBtn = document.getElementById('save-edit-btn');
   if (saveBtn) {
