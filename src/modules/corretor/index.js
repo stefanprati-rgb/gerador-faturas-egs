@@ -191,8 +191,9 @@ function handleFieldChange(fieldId) {
     updateBoletoBadge(false);
   }
 
-  // Recalcular e atualizar preview
-  currentEditorValues = calcularDerivados(currentEditorValues);
+  // Marcar que houve edição e recalcular derivados
+  currentEditorValues._editado = true;
+  currentEditorValues = calcularDerivados(currentEditorValues, fieldName);
   updateAllFields();
 }
 
@@ -230,7 +231,7 @@ function handleDerivedFieldChange(fieldId) {
       (campoFixo) => {
         // Resolver conflito
         currentEditorValues = resolverConflito(currentEditorValues, fieldName, novoValor, campoFixo);
-        currentEditorValues = calcularDerivados(currentEditorValues);
+        currentEditorValues = calcularDerivados(currentEditorValues, fieldName);
         updateAllFields();
       },
       () => {
@@ -241,7 +242,7 @@ function handleDerivedFieldChange(fieldId) {
   } else {
     // Sem conflito, apenas atualizar
     currentEditorValues[fieldName] = novoValor;
-    currentEditorValues = calcularDerivados(currentEditorValues);
+    currentEditorValues = calcularDerivados(currentEditorValues, fieldName);
     updateAllFields();
   }
 }
@@ -256,9 +257,9 @@ function handleBoletoFixoChange() {
   currentEditorValues.boleto_fixo = isFixo;
   updateBoletoBadge(isFixo);
 
-  // Recalcular se não for fixo
+  // Recalcular se não for fixo (o boleto vai ser calculado pela tarifa)
   if (!isFixo) {
-    currentEditorValues = calcularDerivados(currentEditorValues);
+    currentEditorValues = calcularDerivados(currentEditorValues, 'tarifa_egs');
     updateAllFields();
   }
 }
@@ -451,7 +452,7 @@ function openEditModal(instalacao) {
   // Clonar cliente para edição
   currentEditingClient = JSON.parse(JSON.stringify(client));
 
-  // Extrair valores para o editor
+  // Extrair valores para o editor (já vem com valores originais preservados)
   currentEditorValues = extrairValoresBase(currentEditingClient);
 
   // Calcular tarifa EGS reversa se não informada
@@ -459,11 +460,9 @@ function openEditModal(instalacao) {
     currentEditorValues.tarifa_egs = currentEditorValues.boleto_egs / currentEditorValues.cred_fp;
   }
 
-  // Por padrão, boleto vem fixo da planilha
-  currentEditorValues.boleto_fixo = true;
-
-  // Calcular derivados
-  currentEditorValues = calcularDerivados(currentEditorValues);
+  // NÃO recalcular derivados na inicialização!
+  // Os valores originais da planilha são preservados.
+  // O recálculo só acontece quando o usuário edita um campo.
 
   // Atualizar header
   document.getElementById('modal-client-name').textContent = `${currentEditingClient.nome} (${currentEditingClient.instalacao})`;

@@ -115,60 +115,111 @@ function round(val, decimals = 2) {
 
 /**
  * Extrai os valores base de um objeto cliente para cálculo
+ * IMPORTANTE: Preserva os valores originais da planilha!
  */
 export function extrairValoresBase(client) {
+    // Quantidades
+    const consumo_fp = client.dist_consumo_qtd || 0;
+    const cred_fp = client.det_credito_qtd || 0;
+
+    // Tarifas
+    const tarifa_fp = client.dist_consumo_tar || 0;
+    let tarifa_comp_fp = client.dist_comp_tar || 0;
+    const tarifa_egs = client.det_credito_tar || 0;
+
+    // Valores originais da planilha
+    const outros = client.dist_outros || 0;
+    const boleto_egs = client.totalPagar || client.det_credito_total || 0;
+    const fatura_cgd = client.dist_total || 0;
+    const custo_sem_gd = client.econ_total_sem || 0;
+    const custo_com_gd = client.econ_total_com || 0;
+    const economia = client.economiaMes || 0;
+
+    // CORREÇÃO: Se tarifa_comp_fp veio zerada, calcular reversamente usando a fatura
+    // Fatura = Consumo × Tarifa_FP - Crédito × Tarifa_Comp + Outros
+    // Tarifa_Comp = (Consumo × Tarifa_FP + Outros - Fatura) / Crédito
+    if (tarifa_comp_fp === 0 && cred_fp > 0 && fatura_cgd > 0) {
+        const valor_consumo = consumo_fp * tarifa_fp;
+        const numerador = valor_consumo + outros - fatura_cgd;
+        if (numerador > 0) {
+            tarifa_comp_fp = round(numerador / cred_fp, 6);
+        }
+    }
+
     return {
         // Quantidades
-        consumo_fp: client.dist_consumo_qtd || 0,
-        cred_fp: client.det_credito_qtd || 0,
+        consumo_fp,
+        cred_fp,
 
         // Tarifas
-        tarifa_fp: client.dist_consumo_tar || 0,
-        tarifa_comp_fp: client.dist_comp_tar || 0,
-        tarifa_egs: client.det_credito_tar || 0,
+        tarifa_fp,
+        tarifa_comp_fp,
+        tarifa_egs,
 
-        // Valores diretos
-        outros: client.dist_outros || 0,
-        boleto_egs: client.totalPagar || client.det_credito_total || 0,
+        // Valores ORIGINAIS (preservados da planilha)
+        outros,
+        boleto_egs,
+        fatura_cgd,
+        custo_sem_gd,
+        custo_com_gd,
+        economia,
 
-        // Valores derivados (podem vir da planilha)
-        fatura_cgd: client.dist_total || 0,
-        custo_sem_gd: client.econ_total_sem || 0,
-        custo_com_gd: client.econ_total_com || 0,
-        economia: client.economiaMes || 0,
+        // CO2 baseado no crédito
+        co2_evitado: round(cred_fp * CO2_PER_KWH),
+        arvores: round((cred_fp * CO2_PER_KWH / 1000.0) * TREES_PER_TON_CO2, 1),
 
-        // Flag para boleto fixo
-        boleto_fixo: false
+        // Flag para boleto fixo (por padrão SIM, vem da planilha)
+        boleto_fixo: true,
+
+        // Flag para indicar se usuário editou algum campo
+        _editado: false
     };
 }
 
 /**
- * Calcula todos os valores derivados a partir dos inputs
+ * Calcula valores derivados a partir dos inputs.
+ * IMPORTANTE: Só recalcula se o usuário editou um campo de input.
+ * 
  * @param {object} valores - Objeto com todos os valores atuais
+ * @param {string|null} campoEditado - Campo que foi editado (null = preservar originais)
  * @returns {object} - Valores recalculados
  */
-export function calcularDerivados(valores) {
+export function calcularDerivados(valores, campoEditado = null) {
     const v = { ...valores };
 
-    // F1: Custo SEM GD = Consumo × Tarifa_FP + Outros
-    v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
-
-    // F2: Fatura C/GD = Consumo × Tarifa_FP - Crédito × Tarifa_Comp + Outros
-    v.fatura_cgd = round(v.consumo_fp * v.tarifa_fp - v.cred_fp * v.tarifa_comp_fp + v.outros);
-
-    // F3: Boleto EGS - pode ser fixo ou calculado
-    if (!v.boleto_fixo && v.cred_fp > 0 && v.tarifa_egs > 0) {
-        v.boleto_egs = round(v.cred_fp * v.tarifa_egs);
+    // Se nenhum campo foi editado, apenas retorna os valores originais
+    // (usado na inicialização do modal)
+    if (!campoEditado) {
+        // Apenas recalcular métricas ambientais que são sempre derivadas
+        v.co2_evitado = round(v.cred_fp * CO2_PER_KWH);
+        v.arvores = round((v.co2_evitado / 1000.0) * TREES_PER_TON_CO2, 1);
+        return v;
     }
-    // Se boleto_fixo = true, mantém o valor original
 
-    // F4: Custo COM GD = Fatura C/GD + Boleto EGS
-    v.custo_com_gd = round(v.fatura_cgd + v.boleto_egs);
+    // Lista de campos de INPUT (quando editados, disparam recálculo de derivados)
+    const camposInput = ['consumo_fp', 'cred_fp', 'tarifa_fp', 'tarifa_comp_fp', 'tarifa_egs', 'outros', 'boleto_egs'];
 
-    // F5: Economia = Custo SEM GD - Custo COM GD
-    v.economia = round(Math.max(0, v.custo_sem_gd - v.custo_com_gd));
+    // Se editou um campo de input, recalcula TODOS os derivados
+    if (camposInput.includes(campoEditado)) {
+        // F1: Custo SEM GD = Consumo × Tarifa_FP + Outros
+        v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
 
-    // Métricas ambientais
+        // F2: Fatura C/GD = Consumo × Tarifa_FP - Crédito × Tarifa_Comp + Outros
+        v.fatura_cgd = round(v.consumo_fp * v.tarifa_fp - v.cred_fp * v.tarifa_comp_fp + v.outros);
+
+        // F3: Boleto EGS - pode ser fixo ou calculado
+        if (!v.boleto_fixo && v.cred_fp > 0 && v.tarifa_egs > 0) {
+            v.boleto_egs = round(v.cred_fp * v.tarifa_egs);
+        }
+
+        // F4: Custo COM GD = Fatura C/GD + Boleto EGS
+        v.custo_com_gd = round(v.fatura_cgd + v.boleto_egs);
+
+        // F5: Economia = Custo SEM GD - Custo COM GD
+        v.economia = round(Math.max(0, v.custo_sem_gd - v.custo_com_gd));
+    }
+
+    // Métricas ambientais (sempre recalculadas)
     v.co2_evitado = round(v.cred_fp * CO2_PER_KWH);
     v.arvores = round((v.co2_evitado / 1000.0) * TREES_PER_TON_CO2, 1);
 
