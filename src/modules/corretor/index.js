@@ -14,7 +14,6 @@ import {
   calcularDerivados,
   detectarConflito,
   resolverConflito,
-  resolverConflito,
   CAMPOS_CONFIG,
   getFormulaBreakdown
 } from './services/InvoiceRecalculator.js';
@@ -25,7 +24,6 @@ import { applyBulkAction } from './services/BulkActions.js';
 let currentEditingClient = null;
 let currentEditorValues = null;
 let displayedClients = [];
-let pendingConflict = null;
 let pendingConflict = null;
 let selectedClientIds = new Set(); // Estado para seleção múltipla
 let currentOverrides = {}; // Estado dos overrides manuais { campo: true/false }
