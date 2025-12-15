@@ -182,9 +182,10 @@ export function extrairValoresBase(client) {
  * 
  * @param {object} valores - Objeto com todos os valores atuais
  * @param {string|null} campoEditado - Campo que foi editado (null = preservar originais)
+ * @param {object} overrides - Objeto com flags de override { campo: true }
  * @returns {object} - Valores recalculados
  */
-export function calcularDerivados(valores, campoEditado = null) {
+export function calcularDerivados(valores, campoEditado = null, overrides = {}) {
     const v = { ...valores };
 
     // Se nenhum campo foi editado, apenas retorna os valores originais
@@ -197,26 +198,41 @@ export function calcularDerivados(valores, campoEditado = null) {
     }
 
     // Lista de campos de INPUT (quando editados, disparam recálculo de derivados)
+    // Se um cálculo for sobrescrito, ele age como Input também
     const camposInput = ['consumo_fp', 'cred_fp', 'tarifa_fp', 'tarifa_comp_fp', 'tarifa_egs', 'outros', 'boleto_egs'];
 
-    // Se editou um campo de input, recalcula TODOS os derivados
-    if (camposInput.includes(campoEditado)) {
+    // Se o campo editado for um dos inputs OU um campo sobrescrito sendo editado manualmente
+    const isInput = camposInput.includes(campoEditado);
+    const isOverride = overrides[campoEditado];
+
+    // Se editou um campo de input ou override, recalcula TODOS os derivados (que não estiverem travados)
+    if (isInput || isOverride) {
         // F1: Custo SEM GD = Consumo × Tarifa_FP + Outros
-        v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
+        if (!overrides.custo_sem_gd) {
+            v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
+        }
 
         // F2: Fatura C/GD = Consumo × Tarifa_FP - Crédito × Tarifa_Comp + Outros
-        v.fatura_cgd = round(v.consumo_fp * v.tarifa_fp - v.cred_fp * v.tarifa_comp_fp + v.outros);
+        if (!overrides.fatura_cgd) {
+            v.fatura_cgd = round(v.consumo_fp * v.tarifa_fp - v.cred_fp * v.tarifa_comp_fp + v.outros);
+        }
 
         // F3: Boleto EGS - pode ser fixo ou calculado
-        if (!v.boleto_fixo && v.cred_fp > 0 && v.tarifa_egs > 0) {
+        // (Boleto fixo já funcionava como um override nativo)
+        if (!v.boleto_fixo && !overrides.boleto_egs && v.cred_fp > 0 && v.tarifa_egs > 0) {
             v.boleto_egs = round(v.cred_fp * v.tarifa_egs);
         }
 
         // F4: Custo COM GD = Fatura C/GD + Boleto EGS
-        v.custo_com_gd = round(v.fatura_cgd + v.boleto_egs);
+        // Este valor deve sempre refletir a soma real, então recalculamos sempre baseados nos valores atuais
+        if (!overrides.custo_com_gd) {
+            v.custo_com_gd = round(v.fatura_cgd + v.boleto_egs);
+        }
 
         // F5: Economia = Custo SEM GD - Custo COM GD
-        v.economia = round(Math.max(0, v.custo_sem_gd - v.custo_com_gd));
+        if (!overrides.economia) {
+            v.economia = round(Math.max(0, v.custo_sem_gd - v.custo_com_gd));
+        }
     }
 
     // Métricas ambientais (sempre recalculadas)
@@ -224,6 +240,45 @@ export function calcularDerivados(valores, campoEditado = null) {
     v.arvores = round((v.co2_evitado / 1000.0) * TREES_PER_TON_CO2, 1);
 
     return v;
+}
+
+/**
+ * Gera o breakdown (detalhamento) da fórmula para visualização
+ */
+export function getFormulaBreakdown(valores, campo) {
+    const fmt = (val, prefix = 'R$', decimals = 2) => {
+        const num = typeof val === 'number' ? val : 0;
+        return `${prefix} ${num.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    };
+
+    switch (campo) {
+        case 'fatura_cgd':
+            return {
+                title: 'Fatura C/GD (Distribuidora)',
+                formula: '(Consumo × Tarifa FP) - (Crédito × Tarifa Comp.) + Outros',
+                values: `(${valores.consumo_fp} × ${valores.tarifa_fp.toFixed(6)}) - (${valores.cred_fp} × ${valores.tarifa_comp_fp.toFixed(6)}) + ${valores.outros.toFixed(2)}`,
+                result: fmt(valores.fatura_cgd)
+            };
+        case 'boleto_egs':
+            const isFixo = valores.boleto_fixo;
+            return {
+                title: 'Boleto EGS',
+                formula: isFixo ? 'Valor Fixo (Manual)' : 'Crédito × Tarifa EGS',
+                values: isFixo
+                    ? 'Definido manualmente ou fixado na importação'
+                    : `${valores.cred_fp} × ${valores.tarifa_egs.toFixed(6)}`,
+                result: fmt(valores.boleto_egs)
+            };
+        case 'economia':
+            return {
+                title: 'Economia Mensal',
+                formula: 'Custo SEM GD - Custo COM GD',
+                values: `${fmt(valores.custo_sem_gd)} - ${fmt(valores.custo_com_gd)}`,
+                result: fmt(valores.economia)
+            };
+        default:
+            return null;
+    }
 }
 
 /**
@@ -311,12 +366,21 @@ export function resolverConflito(valores, campoAlterado, novoValor, manterFixo) 
             break;
 
         case 'fatura_cgd':
-            // 1. Atualizar Fatura e Outros (Ajuste obrigatório para consistência da fatura)
-            v.outros = round(novoValor - v.consumo_fp * v.tarifa_fp + v.cred_fp * v.tarifa_comp_fp);
+            // 1. Tentar ajustar via Tarifa Compensada (preserva Custo SEM GD)
+            // Fatura = Consumo * TarifaFP - Credito * TarifaComp + Outros
+            // Credito * TarifaComp = Consumo * TarifaFP + Outros - Fatura
+            if (v.cred_fp > 0) {
+                const numerador = v.consumo_fp * v.tarifa_fp + v.outros - novoValor;
+                v.tarifa_comp_fp = round(numerador / v.cred_fp, 6);
+                // Outros e Custo SEM GD permanecem inalterados!
+            } else {
+                // Fallback: Ajustar Outros (reduz Custo SEM GD, boleto não muda)
+                v.outros = round(novoValor - v.consumo_fp * v.tarifa_fp);
+                v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
+            }
             v.fatura_cgd = novoValor;
 
-            // 2. Recalcular Custo SEM GD (Pois 'outros' mudou)
-            v.custo_sem_gd = round(v.consumo_fp * v.tarifa_fp + v.outros);
+            // 2. Resolver conflito downstream
 
             // 3. Resolver conflito downstream
             if (manterFixo === 'boleto_egs') {

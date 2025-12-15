@@ -14,13 +14,21 @@ import {
   calcularDerivados,
   detectarConflito,
   resolverConflito,
-  CAMPOS_CONFIG
+  resolverConflito,
+  CAMPOS_CONFIG,
+  getFormulaBreakdown
 } from './services/InvoiceRecalculator.js';
+import { getBulkEditModalTemplate } from './templates/bulk-edit-modal-template.js';
+import { applyBulkAction } from './services/BulkActions.js';
 
+// Variables
 let currentEditingClient = null;
 let currentEditorValues = null;
 let displayedClients = [];
 let pendingConflict = null;
+let pendingConflict = null;
+let selectedClientIds = new Set(); // Estado para seleção múltipla
+let currentOverrides = {}; // Estado dos overrides manuais { campo: true/false }
 
 /**
  * Renderiza a interface principal do Corretor, incluindo os templates das modais.
@@ -70,10 +78,30 @@ export async function renderCorretor() {
         </div>
       </div>
     </div>
+    </div>
+
+    <!-- Barra Flutuante de Ações em Massa -->
+    <div id="bulk-actions-bar" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-6 hidden z-40 transition-all duration-300 translate-y-20 opacity-0">
+      <div class="flex items-center gap-3">
+        <span class="bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full" id="selected-count-badge">0</span>
+        <span class="font-medium">clientes selecionados</span>
+      </div>
+      
+      <div class="h-6 w-px bg-gray-700"></div>
+
+      <div class="flex items-center gap-2">
+        <button id="open-bulk-edit-btn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
+          <i class="fas fa-pen"></i> Editar em Massa
+        </button>
+        <button id="deselect-all-btn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors text-sm text-gray-400 hover:text-white">
+          <i class="fas fa-times"></i> Cancelar
+        </button>
+      </div>
+    </div>
   `;
 
   // Retorna conteúdo + modais
-  return content + getEditModalTemplate() + getConflictModalTemplate();
+  return content + getEditModalTemplate() + getConflictModalTemplate() + getBulkEditModalTemplate();
 }
 
 export function initCorretor() {
@@ -99,6 +127,12 @@ export function initCorretor() {
 
   // Configurar listeners para todos os campos editáveis
   setupFieldListeners();
+
+  // Listeners para ações em massa
+  setupBulkActions();
+
+  // Listeners para visualização de fórmulas e overrides
+  setupFormulaVisualization();
 }
 
 /**
@@ -172,6 +206,21 @@ function handleFieldChange(fieldId) {
   const el = document.getElementById(fieldId);
   const value = parseFloat(el?.value || 0);
 
+  // Validação Visual
+  const errorEl = document.getElementById(`error-${fieldName}`);
+  if (value < 0) {
+    if (errorEl) {
+      errorEl.textContent = 'Valor não pode ser negativo';
+      errorEl.classList.remove('hidden');
+    }
+    el.classList.add('border-red-500', 'focus:ring-red-500');
+  } else {
+    if (errorEl) {
+      errorEl.classList.add('hidden');
+    }
+    el.classList.remove('border-red-500', 'focus:ring-red-500');
+  }
+
   // Atualizar valor no editor
   currentEditorValues[fieldName] = value;
 
@@ -193,8 +242,12 @@ function handleFieldChange(fieldId) {
 
   // Marcar que houve edição e recalcular derivados
   currentEditorValues._editado = true;
-  currentEditorValues = calcularDerivados(currentEditorValues, fieldName);
-  updateAllFields();
+  currentEditorValues = calcularDerivados(currentEditorValues, fieldName, currentOverrides);
+
+  // Atualizar badge de não salvo
+  document.getElementById('unsaved-badge')?.classList.remove('hidden');
+
+  updateAllFields(fieldName); // Passa o campo editado para evitar sobrescrita visual e aplicar highlights
 }
 
 /**
@@ -210,6 +263,15 @@ function handleDerivedFieldChange(fieldId) {
 
   // Se o valor não mudou significativamente, ignorar
   if (Math.abs(novoValor - valorAtual) < 0.01) return;
+
+  // Se estiver em modo manual (override), tratar como input comum
+  if (currentOverrides[fieldName]) {
+    currentEditorValues[fieldName] = novoValor;
+    currentEditorValues = calcularDerivados(currentEditorValues, fieldName, currentOverrides);
+    document.getElementById('unsaved-badge')?.classList.remove('hidden');
+    updateAllFields(fieldName);
+    return;
+  }
 
   // Detectar conflito
   const conflito = detectarConflito(fieldName);
@@ -231,8 +293,9 @@ function handleDerivedFieldChange(fieldId) {
       (campoFixo) => {
         // Resolver conflito
         currentEditorValues = resolverConflito(currentEditorValues, fieldName, novoValor, campoFixo);
-        currentEditorValues = calcularDerivados(currentEditorValues, fieldName);
-        updateAllFields();
+        currentEditorValues = calcularDerivados(currentEditorValues, fieldName, currentOverrides);
+        document.getElementById('unsaved-badge')?.classList.remove('hidden');
+        updateAllFields(fieldName);
       },
       () => {
         // Cancelar - restaurar valor original
@@ -242,7 +305,7 @@ function handleDerivedFieldChange(fieldId) {
   } else {
     // Sem conflito, apenas atualizar
     currentEditorValues[fieldName] = novoValor;
-    currentEditorValues = calcularDerivados(currentEditorValues, fieldName);
+    currentEditorValues = calcularDerivados(currentEditorValues, fieldName, currentOverrides);
     updateAllFields();
   }
 }
@@ -259,7 +322,7 @@ function handleBoletoFixoChange() {
 
   // Recalcular se não for fixo (o boleto vai ser calculado pela tarifa)
   if (!isFixo) {
-    currentEditorValues = calcularDerivados(currentEditorValues, 'tarifa_egs');
+    currentEditorValues = calcularDerivados(currentEditorValues, 'tarifa_egs', currentOverrides);
     updateAllFields();
   }
 }
@@ -289,10 +352,26 @@ function updateAllFields() {
   const v = currentEditorValues;
 
   // Campos de input (atualizar se não estiver focado)
+  // Campos de input (atualizar se não estiver focado)
   const updateIfNotFocused = (id, value, decimals = 2) => {
     const el = document.getElementById(id);
-    if (el && document.activeElement !== el) {
-      el.value = typeof value === 'number' ? value.toFixed(decimals) : value;
+    if (el) {
+      const numericValue = typeof value === 'number' ? value : parseFloat(value || 0);
+      const currentValue = parseFloat(el.value || 0);
+
+      // Se o valor mudou (e não foi o usuário digitando agora), destacar visualmente
+      if (Math.abs(currentValue - numericValue) > 0.000001 && document.activeElement !== el) {
+        el.value = numericValue.toFixed(decimals);
+
+        // Adicionar highlight
+        el.classList.add('bg-yellow-50', 'transition-colors', 'duration-1000');
+        setTimeout(() => {
+          el.classList.remove('bg-yellow-50');
+        }, 1500);
+      }
+
+      // Se estiver focado, não atualiza o valor para não atrapalhar digitação,
+      // mas se for o campo que disparou a mudança, ok.
     }
   };
 
@@ -367,39 +446,19 @@ function updateCorretorUI(state) {
     const listContainer = document.getElementById('clients-list-corretor');
     if (listContainer) listContainer.innerHTML = '';
   }
+  updateBulkActionsToolbar(); // Update toolbar visibility based on selection
 }
 
 function renderCorretorList(clients) {
-  const container = document.getElementById('clients-list-corretor');
-  if (!container) return;
+  const clientsList = document.getElementById('clients-list-corretor');
+  if (!clientsList) return;
 
-  container.innerHTML = '';
+  displayedClients = clients; // Atualizar referência global
 
-  if (clients.length === 0) {
-    container.innerHTML = `
-      <div class="text-center text-gray-500 py-10">
-        <i class="fas fa-search text-4xl mb-3 text-gray-300"></i>
-        <p class="font-semibold">Nenhum cliente encontrado</p>
-      </div>
-    `;
+  if (!clients.length) {
+    clientsList.innerHTML = '<p class="text-center text-gray-400 py-8">Nenhum cliente encontrado</p>';
     return;
   }
-
-  clients.forEach(client => {
-    const div = document.createElement('div');
-    div.className = 'flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer group';
-    div.innerHTML = `
-      <div class="flex-1">
-        <p class="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">${client.nome}</p>
-        <p class="text-sm text-gray-500">Instalação: <span class="font-mono text-xs">${client.instalacao}</span></p>
-        ${client.totalPagar ? `<p class="text-sm text-blue-600 font-medium mt-1">${formatCurrency(client.totalPagar)}</p>` : ''}
-      </div>
-      <button class="btn btn-secondary text-xs px-4 py-2 edit-client-btn hover:bg-blue-50 hover:text-blue-600" data-instalacao="${client.instalacao}">
-        <i class="fas fa-edit mr-2"></i>Editar
-      </button>
-    `;
-    container.appendChild(div);
-  });
 
   container.querySelectorAll('.edit-client-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -454,6 +513,12 @@ function openEditModal(instalacao) {
 
   // Extrair valores para o editor (já vem com valores originais preservados)
   currentEditorValues = extrairValoresBase(currentEditingClient);
+
+  // Resetar overrides
+  currentOverrides = {};
+  // Se boleto vier fixo, marcamos override implícito visualmente (embora a lógica use boleto_fixo)
+  // Mas para consistência da UI:
+  document.querySelectorAll('input[type="checkbox"][id^="override-"]').forEach(cb => cb.checked = false);
 
   // Calcular tarifa EGS reversa se não informada
   if (currentEditorValues.tarifa_egs === 0 && currentEditorValues.cred_fp > 0 && currentEditorValues.boleto_egs > 0) {
@@ -541,4 +606,196 @@ async function handleSave() {
       saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Salvar e Gerar PDF';
     }
   }
+}
+
+// --- Lógica de Ações em Massa ---
+
+function setupBulkActions() {
+  const openBulkBtn = document.getElementById('open-bulk-edit-btn');
+  const deselectAllBtn = document.getElementById('deselect-all-btn');
+  const closeBulkModalBtn = document.getElementById('close-bulk-modal');
+  const cancelBulkBtn = document.getElementById('cancel-bulk-btn');
+  const applyBulkBtn = document.getElementById('apply-bulk-btn');
+
+  // Modal de edição em massa
+  const bulkField = document.getElementById('bulk-field');
+  const bulkOps = document.querySelectorAll('input[name="bulk-op"]');
+  const bulkValue = document.getElementById('bulk-value');
+
+  openBulkBtn?.addEventListener('click', openBulkEditModal);
+  deselectAllBtn?.addEventListener('click', deselectAll);
+
+  [closeBulkModalBtn, cancelBulkBtn].forEach(btn =>
+    btn?.addEventListener('click', closeBulkEditModal)
+  );
+
+  applyBulkBtn?.addEventListener('click', handleApplyBulkEdit);
+
+  // Preview dinâmico no modal
+  bulkField?.addEventListener('change', updateBulkPreview);
+  bulkOps.forEach(op => op.addEventListener('change', updateBulkPreview));
+  bulkValue?.addEventListener('input', updateBulkPreview);
+}
+
+function toggleSelectAll(e) {
+  const isChecked = e.target.checked;
+  const checkboxes = document.querySelectorAll('.client-checkbox');
+
+  checkboxes.forEach(cb => {
+    cb.checked = isChecked;
+    const id = cb.dataset.id;
+    toggleSelection(id, isChecked, false); // false para não atualizar toolbar a cada iteração
+  });
+
+  updateBulkActionsToolbar();
+}
+
+function toggleSelection(id, isChecked, updateToolbar = true) {
+  if (isChecked) {
+    selectedClientIds.add(id);
+    document.querySelector(`.group[data-id="${id}"]`)?.classList.add('bg-blue-50/50');
+  } else {
+    selectedClientIds.delete(id);
+    document.querySelector(`.group[data-id="${id}"]`)?.classList.remove('bg-blue-50/50');
+  }
+
+  if (updateToolbar) {
+    updateBulkActionsToolbar();
+
+    // Atualizar check do "Selecionar Todos"
+    const selectAllCb = document.getElementById('select-all-clients');
+    if (selectAllCb) {
+      selectAllCb.checked = selectedClientIds.size === displayedClients.length && displayedClients.length > 0;
+      selectAllCb.indeterminate = selectedClientIds.size > 0 && selectedClientIds.size < displayedClients.length;
+    }
+  }
+}
+
+function deselectAll() {
+  selectedClientIds.clear();
+  const checkboxes = document.querySelectorAll('.client-checkbox');
+  const selectAllCb = document.getElementById('select-all-clients');
+
+  checkboxes.forEach(cb => {
+    cb.checked = false;
+    const row = document.querySelector(`.group[data-id="${cb.dataset.id}"]`);
+    row?.classList.remove('bg-blue-50/50');
+  });
+
+  if (selectAllCb) {
+    selectAllCb.checked = false;
+    selectAllCb.indeterminate = false;
+  }
+
+  updateBulkActionsToolbar();
+}
+
+function updateBulkActionsToolbar() {
+  const bar = document.getElementById('bulk-actions-bar');
+  const badge = document.getElementById('selected-count-badge');
+  const count = selectedClientIds.size;
+
+  if (badge) badge.textContent = count;
+
+  if (count > 0) {
+    bar?.classList.remove('hidden');
+    // Pequeno delay para permitir transição de opacidade/transform
+    setTimeout(() => {
+      bar?.classList.remove('translate-y-20', 'opacity-0');
+    }, 10);
+  } else {
+    bar?.classList.add('translate-y-20', 'opacity-0');
+    setTimeout(() => {
+      if (selectedClientIds.size === 0) bar?.classList.add('hidden');
+    }, 300);
+  }
+}
+
+// Modal Functions
+function openBulkEditModal() {
+  const modal = document.getElementById('bulk-edit-modal');
+  const countSpan = document.getElementById('bulk-count');
+
+  if (countSpan) countSpan.textContent = selectedClientIds.size;
+  modal?.classList.remove('hidden');
+
+  // Resetar campos
+  document.getElementById('bulk-field').value = "";
+  document.getElementById('operation-container').classList.add('hidden');
+}
+
+function closeBulkEditModal() {
+  document.getElementById('bulk-edit-modal')?.classList.add('hidden');
+}
+
+function updateBulkPreview() {
+  const field = document.getElementById('bulk-field').value;
+  const op = document.querySelector('input[name="bulk-op"]:checked')?.value;
+  const value = parseFloat(document.getElementById('bulk-value').value);
+  const previewText = document.getElementById('bulk-preview-text');
+  const applyBtn = document.getElementById('apply-bulk-btn');
+  const opContainer = document.getElementById('operation-container');
+
+  if (!field) {
+    opContainer.classList.add('hidden');
+    applyBtn.disabled = true;
+    return;
+  }
+
+  opContainer.classList.remove('hidden');
+
+  if (isNaN(value)) {
+    previewText.textContent = 'Digite um valor válido para aplicar';
+    applyBtn.disabled = true;
+    return;
+  }
+
+  applyBtn.disabled = false;
+
+  const count = selectedClientIds.size;
+  let msg = `Aplicará a alteração em ${count} cliente(s).`;
+
+  // Melhorar mensagem baseado na operação
+  if (op === 'set') msg = `Definirá ${field} como ${value} para ${count} clientes.`;
+  if (op.includes('percent')) msg = `${op === 'add_percent' ? 'Aumentará' : 'Diminuirá'} ${field} em ${value}% para ${count} clientes.`;
+
+  previewText.textContent = msg;
+}
+
+function handleApplyBulkEdit() {
+  const field = document.getElementById('bulk-field').value;
+  const op = document.querySelector('input[name="bulk-op"]:checked')?.value;
+  const value = parseFloat(document.getElementById('bulk-value').value);
+
+  if (!field || isNaN(value)) return;
+
+  // Obter estado atual
+  const currentState = stateManager.getState();
+  // Precisamos de todos os dados processados para encontrar os clientes completos
+  const allClients = stateManager.getState().processedFiles.flatMap(f => f.data.processedData) || [];
+
+  // Aplicar alterações
+  const updatedClients = applyBulkAction(allClients, selectedClientIds, field, op, value);
+
+  // Atualizar estado global
+  const newProcessedFiles = currentState.processedFiles.map(file => {
+    const updatedFileData = file.data.processedData.map(originalClient => {
+      const updated = updatedClients.find(c => c.id === originalClient.id);
+      return updated || originalClient;
+    });
+
+    return {
+      ...file,
+      data: {
+        ...file.data,
+        processedData: updatedFileData
+      }
+    };
+  });
+
+  stateManager.setState({ processedFiles: newProcessedFiles });
+
+  notification.success(`${selectedClientIds.size} clientes atualizados com sucesso!`);
+  closeBulkEditModal();
+  deselectAll();
 }

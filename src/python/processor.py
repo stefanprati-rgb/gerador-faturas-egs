@@ -275,10 +275,10 @@ COLUMNS_MAP = {
     
     # Boleto EGS (R$)
     'boleto_ev': [
-        "Boleto Hube definido para a ref. Mensal",  # ← PRIORIDADE 1: Valor final
-        "Valor enviado para emissão",
-        "Boleto Emitido Gera StarkBank",
-        "Boleto PAGO StarkBank",
+        "Valor enviado para emissão",              # ← PRIORIDADE 1
+        "Boleto Emitido Gera StarkBank",           # ← PRIORIDADE 2
+        "Boleto PAGO StarkBank",                   # ← PRIORIDADE 3
+        "Boleto Hube definido para a ref. Mensal", # ← PRIORIDADE 4
         "valorTotal",
         "Valor Cobrado",
         "Valor Boleto"
